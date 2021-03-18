@@ -1,0 +1,238 @@
+# 问题和想法手记
+
+## 一些信息
+1. 客户端作业交给孙艺
+2. 常量需要首字母大写
+3. 工程和代码注意：
+   1. 去掉不必要的using
+   2. 命名
+   3. 注释
+   4. addictive add scenes
+
+## Chapter1
+
+### Game Objects and Scripts
+1. Multi-Scene editing的意义是什么？多场景协作？
+    除了多场景协作，文档中还说了“allows you to create large streaming worlds”，这个在应用Multi-Scene时是怎么样的实践呢？
+2. “Mesh Filter”指的是什么？Filter的意义是什么？
+3. 注意有的时候Position偏向可能是挂在别的物体底下了。
+4. 使用Parent Empty Object来进行定位的时候就如同处理了坐标系
+5. `class`的modifier是`public`和`external`。
+6. Microsoft.Unity.Analyzers 网页的旁边有download package
+7. 新的警报已经变成了is missing the class attribute 'extensionofnativeclass'，所以这意味着什么？
+    > Unity can only use subtypes of MonoBehaviour to create components.
+
+    1.所以`Monobehaviour`到底做了什么？我们不继承它的时候意味着什么？——有这个问题的原因是我看到了一个知乎上的问题，它的意思似乎是能够不用mb就不用它（为了解耦引擎/提升效率什么的），那这样编程的逻辑是什么呢？如果进行Update等等操作呢？通过哪里调用它呢？可以实现吗？难道是一个Game Manager在游戏开始去调用一个Manager的脚本，然后这个脚本完全自己实现了Timer和Update以及控制所有对象的逻辑？
+       1. MonoBehaviour is the base class from which every Unity script derives. It offers some life cycle functions that are easier for you to develop your app and game.[https://stackoverflow.com/questions/41630986/what-is-monobehaviour-in-unity-3d](来源)
+        就是我把本来引擎做的事情拿来自己实现了？似乎也可能哦。
+    2. 那这里体现了什么思想呢？似乎有个说法叫**基于组件开发**，这指的是什么呢？
+        1. 它和OOP不是一个层级的内容，相对更高一点，不是OO那种时刻都要使用的东西。
+8. Gimbal Lock是什么？一直都没弄懂
+   1. 似乎指的是以陀螺仪万向节作为欧拉旋转基础设施的情况下出现的在最后一次旋转的时候无法向某些分量旋转的情况
+   2. 其中的一些关键在于：
+      1. 万向节中的某个轴必须相对world或者父物体静止，如果它也跟着物体动了那么这个物体和世界就没什么联系了
+      2. 万向节具有嵌套关系
+      3. 万向节的问题并非在于“接下来不能旋转”，而在于表示方式非线性、万向锁的存在要求麻烦的旋转顺序处理，以及不同旋转顺序造成的结果不同等等..
+9.  Single Precision的telepotaion trick是指的什么？
+10. 为什么我的GameObeject没有材质，我明明拖了材质到上面啊。为什么我需要从Mesh Renderer上拿到材质？
+    1.  这里可能有图形学的基础理解。
+11. `const`和`readonly`差异是什么？
+
+### Building a Graph
+1. 所以Prefab能够统一改什么？不能够统一改另一些什么？如果在scene中修改了呢？
+   1. 直接回答第三个问题——如果scene中修改的东西，修改Prefab就不管用了
+2. 给了一个`Transform`到`Instantiate`，创造了一个`GameObject`？仍然返回一个`Transform`？
+3. `while`内部定义的变量可以被重复使用？
+4. 值类型也必须显式初始化才能使用？
+5. 值类型的字段到底是不可被修改还是装箱的值类型字段不可被修改？
+6. 什么是shader？
+   1. "The GPU runs shader program to render 3D objects"
+7. value type直接用field传回和用property传回有差别？为什么？
+8. Time.time的使用，Mathf的使用
+9. Shader的语法和逻辑是怎样的？
+
+### Switching Between Functions
+1. 修改code似乎可以让别的也跟着修改
+2. 学习到的内容：
+   1. `delegate[]`，使用index
+   2. `enum`在editor indicator的显示
+   3. `enum`和`delegate`联动
+3. 双层`for`和一维数组结合使用的时候i可以在内层++，就完全避免了计算i的开销
+4. 这些分型的东西实在是太让人头秃了。
+   1. 我知道了，这些分形让人比较头大的原因可能是因为我没有图形学**uv坐标**方面的知识
+
+## Chapter2
+
+### 第二课讲课内容
+1. Code Review希望review的是真正的逻辑修改而非编辑器的修改。
+
+### Measuring-Performance
+1. 为什么Measuring Performence中提到"In my case it suggests that the entire frame took **51.4ms** to render, but the statistics panel reported **36FPS**, matching the render thread time. The FPS indicator seems to takes the worst of both and assumes that matches the frame rate...**only takes the CPU side into account**"
+   1. emmm也是，两条threads应该都是CPU threads，然后两条threads应该是并行的。所以使用了最差的那个作为简单的估计。
+2. Our graph contains 10.000 points, so it appears that each point got rendered three times. That's once for *a depth pass*, once for *shadow casters*—listed separately as well—and once to render the final cube, per point. The other three batches are for additional work like the sky box and shadow processing that is independent of our graph. There were also six set-pass calls, which can be though of as the GPU getting reconfigured to render in a different way, like with a di!erent material.
+   提到了给到GPU的三次东西：
+   1. **depth pass**
+   2. **shadow caster**
+   3. final cube
+   这三次东西到底是什么呢？
+   1. pass好像是指“一次顶点和像素shader，且有一些设置伴随”。
+   2. 具体depth/shadow可能要看看图形学了
+3. **set-pass**又是什么呢？
+   1. 简单点讲是“切换材质球”[来源：知乎](https://www.zhihu.com/question/299878086/answer/520612546)
+4. **DRP（默认渲染管线）、URP（通用渲染管线）、SRP（可编程渲染管线）**都是什么呢？
+   1. 什么是渲染管线？
+      1. 基本上就是几何-光栅化-像素这个流程[来源：细说细说图形学渲染管线](https://positiveczp.github.io/%E7%BB%86%E8%AF%B4%E5%9B%BE%E5%BD%A2%E5%AD%A6%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF.html)
+   2. 这些差别是什么呢？
+   3. 那么这些名词是以什么样的形式存在的实体？哪些仅仅是概念，而哪些是实际的包？哪些仅在Unity中使用？
+5. URP启动后图形材质变洋红色，需要升级材质 [CSDN](https://blog.csdn.net/zhenghongzhi6/article/details/99437048)。
+   1. Unity会提示不兼容
+6. URP dynamic batching完全不起效，连数值都没差
+7. 在DRP中启动dynamic batching数值上起效，但是帧数不体现
+8. URP - SRP batching + GPU instancing +10fps
+9.  URP - SRP batching +za2FPS
+10. 什么是**延迟渲染**？
+    1.  出发点似乎是为了应对**前向渲染**的多光源重复渲染的问题
+11. URP和DRP的渲染效果似乎不同。
+12. Profiler的每帧用时似乎和Statistics的对应不上啊？Profiler是40多，statistics说是十几
+    1.  嗯，在Build之后的数据中对上了，没有Editor Overhead之后就没毛病了
+13. UI中的stretch和non-stretch的设置选项是不一致的
+    1.  stretch是Left Right Top Bottom
+    2.  non-stretch是PosX posY Width Height
+    3.  说白了就是一个是绝对位置和大小，一个是相对位置和大小
+14. 为什么TMPUGUI会需要一个[`SerializeField`](https://docs.unity3d.com/ScriptReference/SerializeField.html)？
+    1.  什么是`SerializeField`？这个Serializable Atrribute还不太一样
+        1.  "When Unity serializes your scripts, **it only serializes public fields**. If you also want Unity to serialize your private fields you can add the SerializeField attribute to those fields."
+        2.  这个使用的是Unity的序列化系统，并非.net的，并且不能序列化任何静态field和属性
+        3.  关于热重载：更改并保存脚本时，Unity 会热重载所有当前加载的脚本数据。它*首先将所有可序列化变量存储在所有加载的脚本中，并在加载脚本后恢复它们*。热重载后，*所有不可序列化的数据都将丢失*。——[脚本序列化](https://docs.unity3d.com/cn/2018.4/Manual/script-Serialization.html)
+        4.  所以发生了什么？**存储在所有加载的脚本**中指的是？具体是存储到哪里去了？为什么是Serialize而不是Keep或者Remain、Store之类的attribute
+        5.  然后它为什么又会在Indicator中显示？当然这个好像解决了，因为使用它的原因就是为了修改、热重载、执行
+15. `Time.deltaTime`和`Time.unscaledDeltaTime`的区别？
+    1.  很简单，前者是可以被`Time.timeScale`给影响的，而后者是真实时间。
+16. 所以`float`、`int`等我是需要对其初始化的嘛？不需要，默认为0，但是不初始化会报错。
+17. `enum`定义到`class`内外有什么差别呢？
+18. It is important to be aware of memory allocation for temporary objects and eliminate recurring ones as much as possible. Fortunately SetText and Unity's UI update only perform these memory allocations in the editor, for various reasons, like updating the text input field. If we profile a build then we won't find these allocations. So it's essential to profile builds. Profiling editor play mode is only good for a first impression. 这句话是什么意思？
+19. 并且我在Profiler中没有看到这些内存分配啊
+20. 为什么要有那么多`private`的非要设置成`SerializeField`才行，不能直接public嘛？
+    1.  注意前面关于热重载的介绍
+
+尚未解决：4.2（URP、DRP），**14（SerializeField，热重载）**
+
+## Compute Shader
+1. 什么是Single matrix？为什么是它？
+2. 定义kernel function的时候指定的numthread和Dispatch定义了什么？参数的意义是什么？为什么是三维向量形式？和GPU的架构有什么关系嘛？Dispatch的group又是什么？
+   1. group的定义是分辨率/8向上取整...也对，我们画100分辨率的东西需要计算10000个方块，然后每个计算group已经是`8*8*1`了，所以就直接`/8`就很好算
+3. "hot reload"是什么？
+   1. 看前面*热重载*
+4. HLSL语法是什么？
+5. SerializedField跟在editor上显示有啥关系？
+   1. 看前面*热重载*
+6. `someField = default`指的是什么？
+7. Compute Shader和c#代码是如何协同的？举例：DrawMeshInstancedProcedural()是如何与shader协同的？
+8. shader的manu label是什么？target 4.5是什么？
+   1. 就是最上面的`Shader "Custom/FractalSurfaceGPU2"`Custom是在shader选择列表中的一级列表
+9.  PBR graph似乎只能和URP compitable
+10. ComputeBuffer是由C#脚本来控制申请大小的而shader实际上并不能做这些事情对吗？ComputeBuffer的构建在读入-处理-输出中的位置是什么？它存在何处？为什么不是shader去申请然后c#去get呢？
+    1.  所以shader是GPU的逻辑代码咯？GPU实际没有办法去主动和CPU通信？
+11. 为什么要用`UNITY_PROCEDURAL_INSTANCING_ENABLED`
+12. Transforming Matrix - unity_ObjToWorld是一个全局变量吗？为什么这里需要定义这个？。
+    1.  是
+13. Unbelieveable！真的可怕！帧数直线上升
+    1.  Graph2.Update要22ms，但GPUGraph.Update只需要0.02-0.03ms了！天哪
+    2.  为什么不管是Render还是...哦哦哦那个是CPU的render thread
+    3.  理解为什么会产生这样的差异->需要理解GPU的特点->可以帮助理解compute shader的代码逻辑（比如numthread）+帮助理解图形学的内容——需要Unity Shader入门精要
+14. 图形方向好像有问题，并且也很闪烁 
+15. Asynchronous shader compilation为啥和procedural drawing不匹配？
+16. ProceduralDrawing到底是什么？
+    1.  似乎是读abtray data from buffer，而并非vertex和面——[Graphics.DrawProcedural](https://docs.unity3d.com/ScriptReference/Graphics.DrawProcedural.html)
+17. 要想让画面动起来，记得在editor中正确配置空对象对代码和shader的引用
+18. 所以`SV_DispatchThreadID`是从Dispatch->Group做二级换算而来的具体的Thread的ID([MicrosoftDoc](https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-dispatchthreadid))
+19. PointSurfaceGPU适用于DRP，PointURPGPU适用于URP
+20. 后来它怎么改的就可以动态改变绘制数量并且不会让部分方块留存在屏幕？
+    1.  原来是申请**初始分辨率**平方的buffer，绘制的时候**初始分辨率**平方的buffer
+    2.  上面两者造成了一个问题就是所有buffer都会被绘制，即使其已经不用了；并且没办法构建更多的buffer。
+    3.  后面就改成申请**最大分辨率**，并且只绘制**当前分辨率**的内容。
+    4.  注意Step的更新会导致虽然fixed掉的point位置不变，但是大小仍然会随着绘制逻辑的更新而变大
+21. 我去，宏的问题真的好神奇。折行宏后面不能加注释。另外出错之后太几把难调试了。
+    1.  比如定义的“WaveKernal”编译器死活就是找不到，后来发现是Kernel写成Kernal了！
+22. 为什么kernel要和buffer绑定？——We also have to set the positions buffer, which doesn't copy any data but links the buffer to the kernel...Its first argument is the index of the kernel function, because a compute shader can contain multiple kernels and buffers can be linked to specific ones.
+    1.  SetBuffer函数中提到"Buffers and textures are *set per-kernel*. Use FindKernel to find kernel index by function name".——[ComputeShader.SetBuffer](https://docs.unity3d.com/ScriptReference/ComputeShader.SetBuffer.html)
+    2.  后面又说In this case we don't have to provide a kernel index for the bu!er.
+
+未解决问题：**2(numthread, dispatch)**，10，**22(为什么buffer要link到kernel)**
+
+## Animating a Fractal
+1. 为什么
+   ```csharp
+    child.transform.localPosition = 0.75f*Vector3.right;
+    child.transform.localScale = 0.5*vector3.one;
+   ```
+   这两句即可保证所有的sphere变成1/2大小并且相互touching？
+   1. `localScale`在父子之间会传递
+   2. `localPosition`的比例会受ancestor的`localScale`的影响
+2. 为什么Clone `Component`的时候连`GameObject`也会被Clone。并且All child objects也会被Clone
+3. 左右手坐标系及每个轴的旋转正方向的判定：
+   1. 食指y拇指x，其余三指和这个平面90°就是z
+   2. 左手伸出就是左手，否则是右手
+   3. x手坐标系就伸x手握住轴的正方向，四指指向就是旋转正方向
+   from [判断三维坐标系旋转正方向的简单方法](http://wonderffee.github.io/blog/2013/10/17/a-simple-method-to-determine-positive-rotation-in-in-three-dimensional-space/)
+4. 如何理解“The recursive hierarchy of our fractal with all of its independently-moving parts is something that Unity struggles with. It has to update the parts in isolation, calculate their object-to-world conversion matrices, then cull them, and finally render them either with GPU instancing or with the SRP batcher”
+   1. 喔，一个一个对象分别独立更新Update实际上是一个比较慢的事，如果可以由Manager控制来进行flaten的更新，那将非常好。
+5. 如何理解default？
+6. 如果constructor的参数是空的，那么我们在Initializer的时候可以省略掉括号。
+7. 为什么在设定移动距离的时候需要localScale？parent已经设定了并且scale也已经设定了啊（它应该是复杂化了，但可能为了后面做准备）
+8. parent和child的旋转如果要stack需要设定顺序注意。搞定四元数乘法
+9. 对一个物体进行旋转就是在物体的旋转上*一个四元数
+10. Procedural Drawing的意思应该就是前面说的“读取任意数据并绘制”，而非CPU给它顶点
+11. 三维空间的变换矩阵（各种）[三维变换中的矩阵](https://zhuanlan.zhihu.com/p/147282442)
+12. `Matrix4x4.TRS()`意为Transalation、Rotation和Scale
+13. 四元数相乘的连续微小误差意为什么？
+14. 为什么使用ComputeBuffer通常要用`OnEnabled()`？意味着ComputeBuffer在hot reload的时候会发生什么？
+15. `OnValidate`在inspector被改变的时候被调用，或者在undo、redo的时候被调用。
+    1.  文档中并没有介绍两者(`OnValidate`/`OnEnable`)的相对order
+    2.  但是运行表明`OnValidate`比`OnEnable`要早一些
+16. shader graph中为什么要有那个custom function去添加hlsl之中的函数呢？
+    1.  原文中有一句“We'll use a Custom Function node to include the HLSL file in our shader graph. The idea is that the node invokes a function from the file. *Although we don't need this functionality, the code won't be included unless we connect it to our graph*.So we'll add a properly-formatted *dummy function* to PointGPU that simply passes through a float3 value without changing it.”
+    2.  似乎意思是就想加入这个文件而已
+17. 最后`MaterialPropertyBlock`的作用是什么啊？
+18. 非仿射变换是啥玩意？
+19. 使用shader graph的时候记得save assets
+20. SIMD了解一下
+21. ReadOnly特性：
+    1.  The ReadOnly attribute lets you mark a member of *a struct* used in a job as read-only.
+    2.  表明这个字段是可以被安全地parallel访问的
+22. Job要和Burst Compilation合并使用
+    1.  Burst is specifically optimized to work with *Unity's Mathematics library*, which is designed with vectorization in mind.
+23. using static指的是什么？
+24. 我笑了，我的URP和DRP的显示效果不一样hhh
+    1.  URP的问题是在于把localPosition写错成worldPosition了
+
+未解决问题：15,17,
+
+## Organic Variety
+1. shader graph和代码中的In Out是怎么联系起来的
+2. 只有4-component vectors才能被送到GPU
+3. 为什么找一个旋转过的东西的up方向是`mul(mul(parent.worldRotation, part.rotation), up())`？
+   1. 其实很合理就是旋转之后你是知道一个旋转的状态(角度)，但是方向，你还是需要叠加一个vector，就是这样。
+4. 为什么从world up到local up的叉积是旋转轴？
+   1. 就是这样。并且这个旋转如果是正数那么方向就应该是从前者到后者。
+
+未解决问题：
+
+## 第二次课程笔记
+1. window - framedebugger 可以打开图形的debugger，enable之后可以打开GPU所有的命令
+2. Compute shader是CPU是上一帧装给buffer，这一帧计算，计算是在所有的绘制步骤之前的
+   1. 你在shader graph中的所有步骤都在这个debugger里面都可以有显示，并且顺序是按照依赖关系进行的
+3. 同步是两点：一点是CPU给了GPU，然后就是GPU内部流水线就是直接处理依赖关系的。如果GetBuffer在CPU之中是会block掉CPU的
+
+# Unity Shader入门精要
+## 渲染流水线
+
+## Unity Shader基础
+1. 所以generated code是为表面着色器生成的顶点/片元着色器
+2. 结构就是三个部分：
+   1. Property
+      1. 就是一些可以显示在面板里面的变量
+   2. SubShader
+      1. 最少一个
+      2. 
+   3. Fallback
