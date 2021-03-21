@@ -9,9 +9,9 @@
    3. 注释
    4. addictive add scenes
 
-## Chapter1
+# Chapter1
 
-### Game Objects and Scripts
+## Game Objects and Scripts
 1. Multi-Scene editing的意义是什么？多场景协作？
     除了多场景协作，文档中还说了“allows you to create large streaming worlds”，这个在应用Multi-Scene时是怎么样的实践呢？
 2. “Mesh Filter”指的是什么？Filter的意义是什么？
@@ -38,7 +38,7 @@
     1.  这里可能有图形学的基础理解。
 11. `const`和`readonly`差异是什么？
 
-### Building a Graph
+## Building a Graph
 1. 所以Prefab能够统一改什么？不能够统一改另一些什么？如果在scene中修改了呢？
    1. 直接回答第三个问题——如果scene中修改的东西，修改Prefab就不管用了
 2. 给了一个`Transform`到`Instantiate`，创造了一个`GameObject`？仍然返回一个`Transform`？
@@ -51,7 +51,7 @@
 8. Time.time的使用，Mathf的使用
 9. Shader的语法和逻辑是怎样的？
 
-### Switching Between Functions
+## Switching Between Functions
 1. 修改code似乎可以让别的也跟着修改
 2. 学习到的内容：
    1. `delegate[]`，使用index
@@ -61,12 +61,12 @@
 4. 这些分型的东西实在是太让人头秃了。
    1. 我知道了，这些分形让人比较头大的原因可能是因为我没有图形学**uv坐标**方面的知识
 
-## Chapter2
+# Chapter2
 
-### 第二课讲课内容
+## 第二课讲课内容
 1. Code Review希望review的是真正的逻辑修改而非编辑器的修改。
 
-### Measuring-Performance
+## Measuring-Performance
 1. 为什么Measuring Performence中提到"In my case it suggests that the entire frame took **51.4ms** to render, but the statistics panel reported **36FPS**, matching the render thread time. The FPS indicator seems to takes the worst of both and assumes that matches the frame rate...**only takes the CPU side into account**"
    1. emmm也是，两条threads应该都是CPU threads，然后两条threads应该是并行的。所以使用了最差的那个作为简单的估计。
 2. Our graph contains 10.000 points, so it appears that each point got rendered three times. That's once for *a depth pass*, once for *shadow casters*—listed separately as well—and once to render the final cube, per point. The other three batches are for additional work like the sky box and shadow processing that is independent of our graph. There were also six set-pass calls, which can be though of as the GPU getting reconfigured to render in a different way, like with a di!erent material.
@@ -236,3 +236,76 @@
       1. 最少一个
       2. 
    3. Fallback
+
+# Chapter3 
+## Sliding a Sphere
+1. TrailRenderer真是个有意思的东西
+2. `SerializeField`做了什么？
+   1. 告诉editor save 并 expose 这个变量，从而它可以在editor中被修改
+3. 这个直接控制velocity和acceleration的混合模式是这样一个思路：
+   1. 分每个轴进行
+      1. 我可以直接控制velocity所以我有一个最终速度
+      2. 我同时还需要一个加速度的逻辑，加速度在这里不用input处理了，input处理的是速度，这里直接用最大加速度*deltaTime
+      3. 所以就让没有达到最终速度的时候采用加速，达到的时候就不进行加速了
+   2. 恒定的加速度和最大速度下，直接控制速度，但通过手动调节固定加速度大小来调节手感。还是相当于一个速度控制器，但是有了固定加速度了，就有了惯性的感觉。
+
+## Physics
+1. 在`Edit-Project Setting-Time-Fixed TimeStep`中可以修改`FixedUpdate()`的更新速率。
+2. 为什么物理模拟最好放到`FixedUpdate()`里面
+   1. 这个是最能服人的说法——[Unity为什么推荐在FixedUpdate处理物理模拟？](https://zhuanlan.zhihu.com/p/137395596)
+3. `|=`和`GetButtonDown()`的协同作用
+   1. 如果对这个按键的行为还没有resolve那么bool值将保持true直到被resolved，而不是在下一帧直接被false
+4. 调用顺序 `FixedUpdate()`->`OnCollisionXXX()`->`Update()`
+5. `Collision.GetContact()`可以找到所有的碰撞体
+6. 为什么`EvaluateCollision()`中是`|=`
+7. 为什么快速按下跳跃可以跳的更高？
+   1. 画个图就知道，因为这里是直接给的速度
+8. 为什么要用一个字段去记录m_velocity而不是直接用m_body.velocity?
+9. 在Unity中创建的对象必须要变成prefab才能当作asset导出？
+10. In play mode the sphere instances aren't kept synchronized with the prefab. You'd have to select the spheres and change their max ground angle directly.
+11. 注意这里有一个非常经典的范式就是“存储当前状态以便在帧与帧之间进行增量更新”。
+    1.  还需要处理好函数调用顺序间的问题
+12. 计算速度的时候比较挠头，问题还是在：
+    1.  对向量点乘掌握不清晰
+    2.  思路被情绪引导
+    它的核心就是，把沿水平方向的投影到平面上
+
+## Surface Contact
+1. The physics step during which the sphere gets launched still has a collision. We act on that data during the next step, so we think that we're still grounded while we no longer are. It's the step after that when we no longer get collision data. So we're always going to be a bit too late, but this isn't a problem as long as we're aware of it.
+   1. 这一段什么意思？上一帧的物理检测不是在这一帧会被刷新吗？并且Update在物理检测之后啊
+2. 使用法线的单位向量的分量来判断各种角度
+3. 有一个现象，就是最大爬升角度在prefab这种修改之后不会被应用
+   1. 发现问题出在定义了角度，然后在OnValidate之中做了dot的计算但是判定的时候没有应用这个dot
+   2. 并且最关键的是，判定的时候使用的是角度值，没有转换成弧度
+4. 这里有一个编程的范式，就是`UpdateState()`，应该还有别的思路在里面但是还没有全部figure out
+5. 注意跳跃的第一帧仍然会判断OnGrounded的现象，应该是按下时+1，但是此时没有应用跳跃速度没有起飞
+   1. 上一帧Update之中按下跳跃并desire
+   2. 下一帧fixedUpdate更新速度（不知道应用了没，也不知道是不是真正离地了）
+   3. 再下一帧有了离地速度并且又过了一帧原则上应该离地
+6. 鸡贼，为了处理台阶的不平滑移动，把台阶的碰撞体给拉直了
+7. Stair的grounded角度又不灵了
+8. 同一个物体，两种碰撞模式：
+   1. 对Agent而言台阶需要平滑移动
+   2. 对台阶上的小物体而言，台阶要像是台阶。
+   3. 为什么设定了两层layer就会搞定这个问题？
+9. 注意将ask的使用方式输入空间可以由一个Transform来设定，这样就可以绑定到任意本地坐标如何讲本地坐标转换为世界坐标？
+   `mask&(1<<layer)`这样就能得知是否mask中包含layer
+10. 为什么要检测墙呢？
+    1.  因为这里有一个不合理的情况，就是我明明是在一个夹角里，但是我却因为不是踩的Ground而不能跳，只能air jump，但是air jump又用完次数了，于是乎就get stuck
+11. 在墙跳之后要revisit之前的air jumping。也就是行为之间的相互影响注意
+12. more than one step after a jump，非常关键，因为jump（实际上是fixedUpdate之中的速度改变）是下一帧进行的
+
+## Orbit Camera
+1. camera在LateUpdate中进行，避免在视野中的对象偏移
+2. 一些手段：
+   1. target到focus的反向插值
+   2. (1-c)^t的平滑拉动
+      1. 以及避免平滑拉动的无限插值的阈值设定
+3. 旋转，需要加入初始方向，才能得到目标方向
+4. 注意`Transform`的`forward`和`Vector3`的`forward`应该不一样
+   1. trans: Returns a normalized vector representing the *blue axis of the transform* in world space.
+   2. vec: Shorthand for writing Vector3(0, 0, 1).
+5. 别忘了总是要乘speed以及deltaTime
+6. 输入空间可以由一个Transform来设定，这样就可以绑定到任意本地坐标
+   1. 如何将本地坐标转换为世界坐标？
+7. well. Most importantly, we should ignore the sphere itself. When casting from inside the sphere it will always be ignored, but a less responsive camera can end up casting from outside the sphere. If it then hits the sphere the camera would jump to the opposite side of the sphere.
