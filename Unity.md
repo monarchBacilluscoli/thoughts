@@ -242,6 +242,7 @@
 1. TrailRenderer真是个有意思的东西
 2. `SerializeField`做了什么？
    1. 告诉editor save 并 expose 这个变量，从而它可以在editor中被修改
+   2. 并且在Hot Reload的时候可以被存储并被重新应用
 3. 这个直接控制velocity和acceleration的混合模式是这样一个思路：
    1. 分每个轴进行
       1. 我可以直接控制velocity所以我有一个最终速度
@@ -261,8 +262,9 @@
 7. 为什么快速按下跳跃可以跳的更高？
    1. 画个图就知道，因为这里是直接给的速度
 8. 为什么要用一个字段去记录m_velocity而不是直接用m_body.velocity?
-9. 在Unity中创建的对象必须要变成prefab才能当作asset导出？
-10. In play mode the sphere instances aren't kept synchronized with the prefab. You'd have to select the spheres and change their max ground angle directly.
+   1. 早忘了
+9.  在Unity中创建的对象必须要变成prefab才能当作asset导出？
+10. In play mode the *sphere instances aren't kept synchronized* with the prefab. You'd have to select the spheres and change their max ground angle directly.
 11. 注意这里有一个非常经典的范式就是“存储当前状态以便在帧与帧之间进行增量更新”。
     1.  还需要处理好函数调用顺序间的问题
 12. 计算速度的时候比较挠头，问题还是在：
@@ -276,7 +278,7 @@
 2. 使用法线的单位向量的分量来判断各种角度
 3. 有一个现象，就是最大爬升角度在prefab这种修改之后不会被应用
    1. 发现问题出在定义了角度，然后在OnValidate之中做了dot的计算但是判定的时候没有应用这个dot
-   2. 并且最关键的是，判定的时候使用的是角度值，没有转换成弧度
+   2. 并且最关键的是，判定的时候使用的是角度值，没有*转换成弧度*
 4. 这里有一个编程的范式，就是`UpdateState()`，应该还有别的思路在里面但是还没有全部figure out
 5. 注意跳跃的第一帧仍然会判断OnGrounded的现象，应该是按下时+1，但是此时没有应用跳跃速度没有起飞
    1. 上一帧Update之中按下跳跃并desire
@@ -287,7 +289,7 @@
 8. 同一个物体，两种碰撞模式：
    1. 对Agent而言台阶需要平滑移动
    2. 对台阶上的小物体而言，台阶要像是台阶。
-   3. 为什么设定了两层layer就会搞定这个问题？
+   3. *为什么设定了两层layer就会搞定这个问题？*
 9. 注意将ask的使用方式输入空间可以由一个Transform来设定，这样就可以绑定到任意本地坐标如何讲本地坐标转换为世界坐标？
    `mask&(1<<layer)`这样就能得知是否mask中包含layer
 10. 为什么要检测墙呢？
@@ -309,3 +311,33 @@
 6. 输入空间可以由一个Transform来设定，这样就可以绑定到任意本地坐标
    1. 如何将本地坐标转换为世界坐标？
 7. well. Most importantly, we should ignore the sphere itself. When casting from inside the sphere it will always be ignored, but a less responsive camera can end up casting from outside the sphere. If it then hits the sphere the camera would jump to the opposite side of the sphere.
+
+## Custom Gravity
+1. 自定义重力实际上就是+一个重力方向的`Vector3`然后在用的时候带入计算
+2. 至于控制，则加入控制轴的根据重力的变换即可
+3. 静态类是如何得知当前场景的重力信息的
+   1. 当前是“场景”还是“appdomain”
+4. 不同的ForceMode有什么差别呢？
+5. 注意闲置的时候关闭重力计算
+   1. When a Rigidbody is *moving slower than a defined minimum linear or rotational speed*, the physics engine assumes it has come to a halt. When this happens, the GameObject *does not move again until it receives a collision or force,* and so it is set to “sleeping” mode.[`isSleeping()`](https://docs.unity3d.com/Manual/RigidbodiesOverview.html)
+
+## Complex-Gravity
+1. `List`的`Remove()`是如何实现的？
+   1. “Removes the *first occurrence* of a specific object from the List<T>.”
+2. `Debug.Assert`用法
+   1. If the first argument is false, it logs an assertion error, using the second argument message if provided. *The third argument is what gets highlighted in the editor if the message is selected in the console.*
+   2. 只会在Developement build之中有效
+3. unity中的向量应该是列向量，因为Quaternion在前。
+
+
+## 第三次课程
+### 问题
+1. 为什么物理更新需要放到`FixedUpdate()`之中？
+   1. 虽然说这个函数会按照固定时长更新，但是说实话我没法相信这个hhh11
+   2. 我何时应该用固定步长，何时应该用变长步长
+
+### 笔记
+1. 一般都是移动
+   1. 运动移动
+   2. 寻路移动
+      1. staring path ? 应该是点集连接的实现
