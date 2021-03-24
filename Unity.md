@@ -341,3 +341,22 @@
    1. 运动移动
    2. 寻路移动
       1. staring path ? 应该是点集连接的实现
+
+# Chapter 4
+## Moving the Ground
+1. Rigidbody.isKinematic(运动学？)Controls whether physics affects the rigidbody.*If isKinematic is enabled, Forces, collisions or joints will not affect the rigidbody anymore*. The rigidbody will be under full control of animation or script control by changing transform.position.
+2. Animation可以和物理同步
+   1. `Animator.UpdateMode = Animate Physics`
+3. 真的，我的天，rotation对于一个对象来说不视作transform的。你如果检测那个transform，他在rotate，你不会get到一点点transfoProject Setting里的Physics Layer Collision Matrix很有用rm
+4. 把Animation拉成线性：
+   1. Curve显示，`ctrl+a`，右键选择key frame，双侧linear就行了
+5. 所以PhysX和`FixedUpdate()`是谁先调用的？
+   1. 在 `FixedUpdate()` 之后将立即进行所有物理计算和更新。[Unity Doc](https://docs.unity3d.com/cn/2018.4/Manual/ExecutionOrder.html)
+   2. 在 `FixedUpdate()` 内应用运动计算时，无需将值乘以 `Time.deltaTime`。这是因为 FixedUpdate 的调用基于可靠的计时器（独立于帧率）。
+6. 不要让任何有`Rigidbody`的个体成为任何`Rigidbody`的child
+
+## Climbing
+1. 注意stair，这个layer设置错了sphere就可以直接爬墙了
+   1. 把墙当作stair
+   2. Project Setting - Physics Layer - Collision Matrix很有用
+2. 为啥`CheckClimbing()`时把contact、normal等都设置和ground相同？

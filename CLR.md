@@ -400,7 +400,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. **通用类型系统CTS**：相同并公开的类型结构允许不同语言之间进行交互。（相当于协议）
 2. 公共语言基础结构CLI：包含CTS和文件格式、元数据、IL等其他组件的标准
 3. 类型和成员的访问修饰规则：
-   1. 类型：`public`和`assembly`
+   1. 类型：`public`和`assembly`（*顶级类型，而嵌套类型则视作成员*）
    2. 成员：`private`、`family(protected)`、`public`、`assembly(internal)`——包含所有的标准c++修饰符和程序集修饰符
 4. **公共语言规范CLS**：所有语言中都支持的功能
    1. 在**导出且需要别的语言合作的类型**中需要遵守
@@ -1202,4 +1202,155 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 
 ## 委托
 ### 初识委托
-1. 
+1. 委托可以调用私有方法，只要你“委托了”
+### 用委托回调静态方法
+1. 委托的逆变性和协变性跟前面一样，但只有引用类型才支持
+### 用委托回调实例方法
+
+### 委托揭秘
+1. 注意委托也是要new的，毕竟也是一个类型的实例
+2. 编译器自动将委托的声明定义为一个类型
+   1. 继承关系`Object->Delegate->MulticastDelegate`
+   2. 方法：
+      1. 构造器
+         1. 构造器需要两个参数——method和object
+            1. 在写代码的时候并没有明确object，这个步骤是csc给你做的
+      2. `Invoke()`
+      3. `BeginInvoke()`和`EndInvoke()`
+   3. 静态方法：`Combine()`和`Invoke()`
+   4. Fields:
+      1. `_target`
+      2. `_methodPtr`
+      3. `_invocationList`
+### 用委托回调多个方法（委托链）
+1. 建立委托链的中间过程会产生很多临时对象（可简单将委托视为immutable的），那些对象都会被GC
+2. 调用委托链的时候会依序调用
+3. 委托被调用只有最后一个结果可以保存
+4. 可以通过`GetInvocationList()`来返回一个Invocation的列表从而自行进行调用控制
+### 委托定义不要太多
+1. Func和Action不能定义带ref和out参数的
+2. params、默认参数、泛型参数约束等都需要定义自己的委托类型
+### C#为委托提供的简化语法
+1. 不需要非要`new`一个`delegate`的类型
+2. 匿名函数就比较难受
+### 委托与反射
+1. 核心是`System.Delegate.MethodInfo`的静态`CreateDelegate()`方法
+   1. 这个方法的最简单形式需要两个参数
+      1. `Type delegateType`（就是你定义的delegate类型，就是你想创建一个什么类型的`delegate`，它显然需要和这个函数的签名是一致的，*估计是可以处理同名函数之中的重载*）
+      2. `Object target`（参数0，也就是this指针）
+   2. 调用时当然先要得到前面的`MethodInfo`，方法也很简单
+      1. `typeof(某个type).GetTypeInfo().GetDeclaredMethod("函数名")`
+   3. 然后就用这个返回的对象`CreateDelegate()`就好了。
+
+## 定制特性
+### 使用定制特性
+1. 可以理解为定制你自己的public, sealed等等特性，这里编译器并不理解他的意义，只不过机械地生成了对应的元数据
+2. 非位标志枚举类型可否按位与？非枚举除了输出样式外有没有什么别的骚操作？
+3. 可以用以下形式表明特性应用的位置：
+   ```csharp
+   [assembly: SomeAttr("Kernel32", CharSet = Charset.Auto, SetLastError = true)]
+   ```
+   1. 注意后面的参数（增强型构造器）
+      1. 不具名的参数传递是“定位参数”，是构造器的参数（必须给）
+      2. 具名参数就像值类型的initializer一样是公共field或property（optional）
+   2. 构造之后特性的*所有状态*都会被序列化到*目标元素*的*元数据表记录项*中
+4. 定制特性也是一个类的实例，从`System.Attribute`中*直接或间接*派生（说白了是引用类型）
+5. 特性当然也可以修饰特性类，比如用于修饰特性用法的`AttributeUsage`
+### 特性构造器和字段/属性数据类型
+1. 特性的各类数据通常情况下都要在编译期能够求值（字面值/常量表达式）。
+### 检测定制特性
+1. 特性仅被标记，没有相应的处理逻辑则没有屁用
+2. 这个处理逻辑的基础是“反射”
+   1. 在实际代码中，通过反射在运行时检查（基于*字符串比较*）特性的存在情况以及特征
+      ```csharp
+      this.GetType().IsDefined(typeof(FlagsAttribute), false)
+      ```
+   2. 然后基于检测结果，执行一些逻辑分支代码特性才能真正发挥作用
+   3. 如果使用`GetAttribute()`的话，就会在调用处也构造获得的实例
+### 两个特性实例的相互匹配
+1. 进行`Equals`或者`Match`匹配的时候还不是要老老实实构造一个对象并且对比。但为什么不能直接对比字段呢？
+   1. 哦，因为那个字段是private的
+   2. 那为什么不能写property？当然可以，只不过书中认为这是“老老实实写代码”的方法。
+### 检测定制特性时不创建从Attribute派生的对象
+1. 使用`CustomAttributeData.GetCustomAttibutes()`，它会提供一些：
+   1. `DeclaringType`
+   2. `ConstructorArguments`
+   3. `NamedArguments`
+   4. 这些输出描述的方法
+### 条件特性类
+1. `ConditionalAttribute`可以用于修饰`Attribute`类型
+   1. 只有在定义ConditionalAttribute之中指定的符号时才会在元数据中生成该特性信息。
+   2. 但是该特性会被编译，只是不会进到使用者的元数据之中而已
+
+## 可空值类型
+1. 就是`strcut`
+   1. 一个`hasValue`（默认是空）
+   2. 一个`value`
+### C#对可空值类型的支持
+1. 可以用类型+`?`的形式来搞定
+   ```csharp
+   Int32? x = 5;
+   Int32? y = null;
+   ```
+2. 允许转型、操作符
+   1. 其他的只要有一个是`null`结果就是`null`
+   2. 操作符`&`和`|`有差别：
+      1. `&`选最拉胯的那一个
+      2. `|`选最不拉胯的哪一个
+      3. 拉胯指数排序：false < *null* < true
+   3. 实际运算时的逻辑(`+`)：
+      1. 检查两者是否为空
+      2. 如果都不为空则返回结果
+      3. 否则返回null
+3. 自己定义的可空值类型也可以正常调用重载的操作符和方法
+### C#的空接合操作符
+1. 语法糖
+### CLR对可空值类型的特殊支持
+1. 注意是CLR，装箱时
+   1. 如果是`null`直接装箱`null`
+   2. 如果非`null`直接装箱`value`
+2. 拆箱时可以直接给到`nullable<T>`
+3. `GetType()`会将其视作`T`
+4. 可空值类型可以直接转化为接口
+5. 说白了就是把它当成value而非warped value
+   
+## 异常和状态管理
+### 定义“异常”
+1. 当动词不能完成任务时，就应该抛出异常
+### 异常处理机制
+1. 过程：
+   1. `catch`搜索会从栈顶到栈底进行搜索
+   2. 当搜索到结果时内层的`finally`块都会被执行
+   3. 如果`catch`成功后，它再执行同级别的`finally`块
+   4. 然后执行finally块之后的语句
+2. finally块是保证会执行的代码
+3. 
+### System.Exception类
+1. 包含：
+   1. 一些自定义信息：
+      1. Message
+      2. Data（字典）
+      3. HelpLink
+   2. 一些调用信息：
+      1. Source（哪个程序集出错）
+      2. StackTrace
+      3. TargetSite（哪个方法出错）
+   3. 一些异常信息：
+      1. InnerException
+      2. HResult
+2. StackTrace属性
+   1. 当`new Exception`的时候为`null`
+   2. `throw`的时候CLR记录抛出位置
+   3. `catch`的时候CLR记录捕捉位置
+   4. 当`catch`内部块访问`StackTrace`属性的时候，CLR的记录代码会被调用，再行创建*异常抛出到捕捉位置*的所有方法
+      1. 这里不包括任何比catch块更高的方法
+         1. 如果需要，可以用System.Diagnostics.StackTrace
+3. `throw`带有具名对象会导致CLR重置异常起点
+   1. 而windows无论是是否具名throw都会重置
+4. CLR如果能找到调试符号，那么StackTrace之类的属性将包括代码行号
+### 抛出异常
+1. 这里有一个自动化处理异常序列化、反序列化的案例（没看）
+### 用可靠性换取开发效率
+1. 如果状态损坏很糟糕，那么就用
+   1. AppDomain.Unload
+   2. Environment.FailFast
