@@ -360,3 +360,82 @@
    1. 把墙当作stair
    2. Project Setting - Physics Layer - Collision Matrix很有用
 2. 为啥`CheckClimbing()`时把contact、normal等都设置和ground相同？
+
+## Swimming
+1. 所以Trigger不被检测的原因是什么？
+   1. 一般是怎样的物体才会作为Trigger？
+   2. 所有的水都是Trigger
+2. 别的Mask都是1，为什么水的Mask是0？
+3. `Collision`和`Collider`的区别
+   1. `Collision`包含`Collider`，嗯
+      1. 初次之外Collision还包含一些`impact`
+4. Unity的layer的内部实现，为什么不能和layerMask直接&。
+5. OnXXXEnter都是在Physics阶段，但是在FixedUpdate调用之后。
+   1. Trigger会早于Collision
+6. 我觉得水阻力这部分有点问题
+   1. 似乎它在假设一个可行范围，但是很奇怪，10就ok而多一点都不行，公式如下：
+   ```csharp
+   if (InWater) {
+      velocity *= 1f - waterDrag * Time.deltaTime;
+   }
+   ```
+7. 查一下C#的四则运算的类型问题
+8. 妈的这些逻辑是不是能用状态机去写啊
+9. 对于速度的影响有几种：
+   1.  做加减法（acceleration）
+   2.  根据比例缩放（drag）
+   3.  直接消除
+10. 为什么AddForceAtPositionf到非全局位置会导致旋转？
+11. 将物体在水中稳定住：
+    1.  设定浮力作用点和重力受力点的偏移
+    2.  如果是大的物体记得设置多于一个的平衡受力点
+
+## Reactive Environment
+1.  为什么把`JumpPhase`设为-1就可以解决`SnapToGround`的问题？
+    1.  因为这样就欺骗`SnapToGround`让他以为刚刚起跳，这个时候肯定不能用Snap把？
+2.  加速的典型用法是：
+    1. `Mathf.MoveTowards(velocity.y, m_speed, m_acceleration * Time.deltaTime)`
+3.  C# Event的修饰符是`public`，但是在Unity中的`UnityEvent`则不用
+4.  OnTriggerExit没法在物体deactiveted的时候被调用
+5.  检测碰撞一节使用了`collider.gameObject.activeInHierarchy`，这是否意味着此处存在“子物体active但父物体unactive”的情况？
+    1.  对，并且物体被disable和collider被disable是两个东西
+    2.  但是这里`!collider`的检查似乎不可用，应该是`!collider.enabled`
+6.  To avoid needlessly invoking FixedUpdate continuously we can disable the component when it awakens and after the last collider exits. Then we only enable it after something enters. This works because the trigger methods always get invoked, regardless whether a behavior is enabled.
+    1.  很有趣，这里有一个现象就是当物体处于disabled的时候OnTriggerXXX仍然能工作？
+    2.  对，估计是因为OnTriggerEnter是注册给Collider组件的，所以这个函数的从属组件是否失效并不影响，影响的只是FixedUpdate这些
+7. 检查是否为hot reload（如果处于editor并且所有层级物体都enable则是）
+8. 他这里说了一个使用Animation是OK的，但是有的时候简单的两点移动用interpolation就行了
+9. Unity无法序列化泛型事件类型，所以需要将该类型变为具体类型，即从
+   ```csharp
+   [SerializeField]
+   UnityEvent<float> onValueChanged = default;
+   ```
+   派生为
+   ```csharp
+   [System.Serializable]
+   public class OnvalueChangedEvent:UnityEvent<float>{}
+
+   [SerializeField]
+   OnValueChangedEvent onValueChanged = default;
+   ```
+   1. 估计这里的原因是泛型类型序列化是C#不支持
+10. `MovePosition()`和直接给`Position`赋值有何差异？
+11. 这个Interpolator和Slider分开并用事件触发的机制可以思考一下
+    1. “*How that value gets changed* is a separate issue from the interpolation itself. Keeping the slider separate also makes it possible to use it for *multiple interpolations* .”
+12. 脚本名中间不能有空格，否则提示找不到
+13. 是否smooth可以用一个lambda和trigger来设定
+14. 如果两个将要碰撞的碰撞体，比如Silder和Ground之间有其他物体，那些物体可能爆开可能穿模，解决之道：
+    1.  碰撞面有角度，其他物体可以被稳定挤出
+    2.  碰撞面不会完全碰到一起
+
+## Rolling
+1. 加速度在两个轴分别生效但是速度变化率一样，这样会导致如果方向不沿着某个坐标轴，加速度使之停止的时候最后速度就会平行于其中一个轴，因为另一个轴的速度很快减到零了
+2.  Quaternion.Euler(rotationAxis * angle) * m_ball.localRotation;
+   1. 这是一种什么操作？
+      1. 哦，Quaternion.Euler的本意就是返回一个四元数，表示在各轴上旋转对应轴上的读数
+3. 有意思，做球的旋转只需要
+   1. 接触面法线cross移动方向就得到了旋转轴
+   2. 距离对半径进行计算就得到了旋转角度
+   3. 结了
+4. 旋转矫正的这一句是什么意思？
+   Quaternion newAlignment = Quaternion.FromToRotation(ballAxis, rotationAxis) * rotation;

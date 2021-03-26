@@ -143,7 +143,7 @@ https://docs.microsoft.com/zh-cn/dotnet/csharp/programming-guide/classes-and-str
 ## 20. 异常处理
 1. try...catch...finally的执行顺序（在同一层次以及多个函数调用层级上）是怎样的（try块如果出现了异常将高层catch块逐步匹配，匹配成功之后先从下到上执行finally然后执行匹配的catch最后catch那一层的finally（如果按照高层不管底层的视角，其实这个很好理解））
 说起来如果有底层的逻辑保驾护航似乎自己也不用写很多异常处理逻辑。
-2. 任何情况finally块都会工作？那么卸载AppDomain的时候嘞？（ThreadAbortException会使得所有finally块工作, 404注释）
+2. 任何情况finally块都会工作？那么卸载AppDomain的时候嘞？（`ThreadAbortException`会使得所有finally块工作, 404注释）
 	1. Environment.FailFast()（卸载进程）方法调用不会执行finally块，因为使用这个方法的时候默认状态已经差到不能再运行什么破代码了。
 3. Exception包含了点什么东西，
 	1. StackTrace里面包含了什么？
