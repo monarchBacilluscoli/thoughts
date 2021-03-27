@@ -664,7 +664,6 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 只能从`System.Object`派生（为什么静态类不适用继承）
    2. 不能实现接口（接口方法需要实例）
    3. 只能有静态成员
-   4. 
 3. 会被直接标记为abstract、sealed抽象密封
 ### 分布类、结构和接口
 1. `partial`关键字
@@ -702,7 +701,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       1. 似乎是以字面值而非构造器中的赋值（那是readonly）
       2. 但是它也是field： `.field public static literal int32 a = int32(0x00000005)`
       3. 问题就是dll中的const并不会影响调用它的程序集，所以如果希望有依赖，这里推荐使用`readonly`
-   2. 
+   2. 只读：
+      1. 只有构造器才可以写入
 2. 所以只能定义编译器识别的*基元类型*的常量
 3. C#支持非基元类型的常变量，只要设为`null`
 ### 字段
@@ -711,23 +711,27 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. static
    2. instance（默认）
    3. readonly：除构造器外任何*方法*不可以写入
-   4. *volatile*
-6. 内联初始化只是对构造器的一种语法的简化。
+   4. *volatile*：读写操作不能从寄存器处理，顺序不可颠覆
+      1. 写是最后一个
+      2. 读是第一个
+      3. 只有一些基本类型才可以做
+6. 内联初始化（直接在变量定义处赋值，而非构造器处）只是对构造器的一种语法的简化。
 
 ## 方法
 ### 实例构造器和类
 1. 没有被构造器构造的都保证是null或0
-2. 内联初始化的构造器代码会在*每一个构造器中加入*->*调用基类构造器*->调用自己构造器的代码
-3. 构造器委托调用可以减少生成的代码
+2. 构造器永远不能被继承
+3. 内联初始化的构造器代码会在*每一个构造器中加入*->*调用基类构造器*->调用自己构造器的代码
+4. 构造器委托调用可以减少生成的代码
 ### 实例构造器和结构
-1. 性能考虑->CLR不会为引用类型的每个值类型都主动调用构造器，但
-   1. 在堆中的嵌入的保证为0或null。
+1. 性能考虑->CLR不会为*引用类型的每个值类型*都主动调用构造器，但
+   1. 在引用类型中的嵌入的值类型保证为0或null。
    2. 在栈上的保证置零或要求读取前赋值
    -> 值类型不允许定义无参构造器，目的就是让开发者死了值类型会被自动调用无参构造的心
    -> 所以它也不允许内联初始化*实例字段*
    -> 但是*静态字段*可以内联初始化，因为它只用调用一次，没有性能压力
 2. 值类型并不需要有构造器，但可以定义
-3. 值类型构造器必须对所有成员完整赋值（即使是用this = new SameType()进行初始化也可以）
+3. 值类型*构造器*必须对所有成员完整赋值（即使是用this = new SameType()进行初始化也可以）
 ### 类型构造器
 1. 默认没有，定义*只能定义一个and无参*
 2. 默认私有，不能加修饰符
@@ -1456,3 +1460,95 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 并被提升至更高级别
 3. *高优先级线*程专门调用这些对象的Finalize方法并移除之
 4. 下一次清理高级垃圾的时候，所有的根都不引用这些托管垃圾了，他们就可以被安全清除。
+
+5. 四个标志：
+   6. weak
+   7. weakTrackResurrection
+   8. Normal
+   9. Pinned
+6. fixed会让CSC在对象局部变量上生成“已固定”标记，比采用代理的形式效率要高一些
+
+## CLR寄宿和AppDomain
+1. 垫片与最新版本的的CLR相同。负责启动CLR服务器
+   1. 然后CLR启动对应的AppDomain
+   2. 类型对象不会由AppDomain共享
+      1. 但是有些是AppDomain中立的类型，比如MsCorLib.dll，这些为一个进程所有AppDomain所共用
+1. 按值封送和*按引用封送*要搞一搞
+## 程序集加载和反射
+1. 程序集在加载的时候CLR即是用Assembly.Load来加载程序集，传入的是程序的完整名称的字符串
+2. LoadFrom(path)只负责从path中获取程序集全名，然后用全名调用Load，但Load会从GAC-根目录等位置开始查找，所以找到的并不一定是自己想加载的
+3. 不执行构建但是加载的方式是ReflectionOnlyLoad()
+4. 应用程序使用反射的情况之二
+   1. 序列化——需要知道类型定义了什么内容
+   2. 根据强命名加载程序集
+5. 反射的问题：
+   1. 依赖字符串，于是无法在编译期进行检查
+   2. 依赖字符串对比，效率低
+   所以更推荐使用类型及接口
+6. Type和TypeInfo的区别
+   1. Type是TypeInfo的轻量级引用
+
+## 序列化与反序列化
+1. 调用序列化器进行序列化反序列化的形式如下:
+   ```csharp
+   formatter.Serialize(stream, objectGraph);
+   // ...
+   object a = Deserialize(stream);
+   ```
+   这里没有显式提供任何对象有关的信息，这些信息是由序列化器通过反射get到的
+2. 如果序列化多个对象，反序列化也需要按照序列化时的顺序进行
+3. 机制：
+   1. 序列化时类型和程序集的强命名会被写入流
+   2. 反序列化时先加载程序集和类型
+   3. 然后创建类型实例，并以流中的数据来初始化该实例
+4. 如果需要序列化的对象并非都可以序列化，则会在序列化*期间*抛出异常
+   1. 在期间抛出异常的原因是，考虑到性能，序列化前CLR不会验证所有的字段、对象都可以序列化
+5. 可以应用在
+   1. 值类型
+   2. 引用类型
+   3. 枚举类型
+   4. 委托类型
+6. Serializable不会继承
+### 控制序列化和反序列化
+1. `NonSerialized`显式标记某些字段字段不要
+3. `OnSerializing`-`OnSerialized`是被序列化对象在序列化前后调用的
+   1. 前者用于序列化前准备（欺骗序列化hhh）
+   2. 后者用于序列化后恢复之前的准备
+4. `OnDeserializing`-`OnDeserialized`
+   1. 前者用于反序列化前设置默认值
+   2. 后者用于反序列化之后重建待计算值——例如以半径计算面积。和NonSerialized可以协同使用
+5. `OptionalField`用于设定某些字段在流中可以有可以没有，没有的话可以不要。我估计这个和OnDeserializing可以一起用
+### 格式化器如何序列化类型实例
+1. 流程：
+   1. `FormatterServerice`反射获取MemberInfo[]
+   2. `GetObjectData`获取所有字段的值Object[]，和前者是一一对应的
+   3. 格式化器将程序集标识和类型完整名称写入流
+   4. 依次将两个数组的名字-数据写入流中
+2. 反序列化流程：
+   1. 将程序集和类型加载到AppDomain
+   2. 使用反射调用GetUninitializedObject()来分配一个对象的内存但不调用构造器
+   3. 使用反射获取MemberInfo[]
+   4. 格式化器获取Object[]
+   5. PopulateObjectMembers()填充对象
+### 控制序列化/反序列化数据
+1. 就是自己实现ISerializable接口
+   1. 只有一个`GetObjectData()`
+   2. 优先级大于`Serializable`特性
+2. 要求：
+   1. 派生类也必须实现
+   2. 必须在构造的时候先调用基类的GetObjectData()
+3. 组成部分：
+   1. 一个构造器用于存储SerializationInfo（可以用于直接初始化对象的）
+      1. 在其中可以调用info的各种GetValue方法
+   2. 一个GetObjectData(SerializationInfo info, StreamingContext context)
+   3. IDeserializationCallback.OnDeserialization(Object sender)
+### 流上下文
+1. 表示序列化的数据来源和去向的类型（同一机器？进程？还是别的）
+2. 可以在序列化器的Serialize()和Deserialize()中指定
+### 序列化代理
+1. 序列化部分和ISerializable基本一致，
+   1. 反序列化部分不是构造器了，而是`Object SetObjectData(Object, SerializationInfo, SteamingContext)`
+2. 使用的时候需要做两个事：
+   1. 创建一个代理选择器，告诉他为该种类型使用该种代理
+   2. 创建一个序列化器，告诉他使用该种代理选择器
+3. 
