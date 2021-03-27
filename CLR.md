@@ -741,20 +741,20 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 操作符重载方法
 1. CLR不知道操作符，所有的无论是基元类型还是非基元类型的操作符都是csc干的事情
 2. 要求
-   1. public 
-   2. static 
+   1. `public` 
+   2. `static`注意
    3. 至少有一个参数和当前类型相同
    4. 会自动生成`specialname`标志（关键，它是以这个方法应用于运算符的必须条件）
-3. *这里有个问题，++怎么算？哦，显式this*
+3. *这里有个问题，++怎么算？哦，显式this*（这样就有一个参数了）
 4. 核心数值类型为什么没有定义任何操作符重载方法？
    1. 因为调用代价，所以编译器会在代码中专门查找针对这些基元类型执行的操作，从而生成直接操作这些类型的IL指令
       1. 我的理解是它的这些运算符相当于*内联*了
 ### 转换操作符方法
 1. 要求
-   1. static
-   2. public
+   2. `public`
+   1. `static`
    3. 参数或返回值至少一个相同
-2. 隐式/显式转型修饰符
+2. 隐式/显式转型修饰符，在`public static`之后
    1. `implict`：任何时候发现均进行隐式调用
    2. `explicit`：只有显式转换时才调用
 3. *形式*：
@@ -769,9 +769,11 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. `static`
    3. 第一个参数前+`this`
 3. 不支持扩展属性、事件、操作符
-4. 冲突处理：用静态语法调用
-5. 不检查非空
-6. 实际上扩展方法应用了一个ExtensionAttribute，以及包含它的静态类，以及程序集
+4. 只能在静态类中定义
+7. 需要有文件级作用域，亦即不能在嵌套类中
+5. 冲突处理（如果有两个类型都定义了同样签名的扩展方法）：用静态语法调用
+6. 不检查非空
+8. 扩展方法应用了一个ExtensionAttribute，以及包含它的静态类，以及程序集
 ### 分部方法
 1. 可以解决以类作为最小粒度，基类只能使用virtual function来释放给派生类修改行为的局限：
    1. 只能是非密封
@@ -779,29 +781,29 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 不能是静态方法
    4. 效率问题
 2. 形式：
-   ```Csharp
+   ```csharp
    partial class 类型名
    {
-      partial void 函数名();
+      partial void 函数名(); // 相当于有函数声明就行了
    }
    ```
    另一个文件：
-   ```Csharp
+   ```csharp
    partial class 类型名
    {
-      partial void 函数名()
+      partial void 函数名() // 相当于必须要有函数实现
       {
          函数体
       }
    }
    ```
-3. 分部方法如果没有实现，就完全不生成IL代码
-4. 要求：
+4. 分部方法如果没有实现，就完全不生成IL代码
+5. 要求：
    1. 类也要分部
-   2. 返回`void`
+   2. 返回`void`，也不能有`out`参数——不能有任何这个函数会返回什么从而影响整个调用流的可能
    3. 签名一致，特性合并
    4. 视为`private`，为什么？恐怕因为分布类可能定义可能未定义，对于使用者来说能否使用是不清楚的
-5. 
+6. 
    
 ## 参数
 ### 可选参数和命名参数
@@ -823,8 +825,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. `var`是编译器支持的特性
 2. 规则
    1. `var`不能为null
-   2. 不能为参数声明
-   3. 不能声明字段
+   2. 不能为参数和字段
    而`dynamic`上述均可，var只能局部变量
 ### 以传引用方式向方法传递参数
 1. `out`和`ref`是一码事，只不过csc会以不同标准验证你的代码
@@ -847,19 +848,19 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 但这玩意除了省了点打字的事之外感觉挺傻逼的
 3. 对象和集合初始化器（initializer）可以用于ref object：
    1. 形式
-      ```Csharp
+      ```csharp
       String s = new Employee(){Name="Jeff", Age=45}.ToString().ToUpper();
       ```
    2. 除了用于实例化的时候设置*公共属性（或字段）*（调用的是`replace`），还可以用于`IEnumerable`和`IEnumerable<T>`接口类型对象的初始化（调用的是`add`）
-      1. 需要多个实参的add方法可以通过大括号嵌套来调用initializer
+      1. 需要多个实参的`add`方法可以通过大括号嵌套来调用initializer
 4. 匿名类型
    1. 形式：
-      ```CSharp
+      ```csharp
       var o = new{Name="Jeff", Year=1964}
       ```
    2. 构建的实际类型：
       1. 自动合成名称、构造函数、Equals、GetHashCode、ToString
-      2. readonly field
+      2. *readonly field*
          1. property也确实只有get
    3. 进阶形式
       ```csharp
@@ -902,7 +903,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
          ```csharp
          void MethodName(Object sender, NewMailEventArgs e);
          ```
-      3. 事件的修饰符是public，但是在Unity中的UnityEvent则不用
+      3. 事件的修饰符是`public`，但是在Unity中的UnityEvent则不用
    3. 定义引发事件的方法：
       1. 形式：
          ```csharp
