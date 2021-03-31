@@ -1559,3 +1559,23 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 2. 使用的时候需要做两个事：
    1. 创建一个*代理选择器*，告诉他为该种类型使用该种代理
    2. 创建一个*序列化器*，告诉他使用该种代理选择器
+
+
+### 错题
+1. `internal`和`public`是否可以同时存在？
+   1. 首先这两者是无法修饰同一个成员的
+   2. 但对于类和类的成员可以设定不同的修饰，有两个组合：
+      1. A public member of a class or struct is a member that is accessible to anything that can access the containing type. So a public member of an internal class is effectively internal. [StackOverflow](https://stackoverflow.com/questions/9302236/why-use-a-public-method-in-an-internal-class/9302642#:~:text=A%20public%20member%20of%20a,internal%20class%20is%20effectively%20internal.). 即如果类型为`internal`但其中的成员为`public`，那么成员实际也会是`internal`的，或许意义不大。
+      2. 但是如果类型为`public`，但成员为`internal`，则该类的可见性在程序集边界上被分成了两块，一块仅供程序集内部访问，一块可以供程序集之外使用。这样是ok的。
+2. 以下情况类型对象会不会被构建
+   `SomeType p = (SomeType)CreateInstance();`
+   1. 如果`CreateInstance`返回为`null`则不会被创建，毕竟引用类型变量都相同。强制类型转换也不涉及对象的初始化和成员调用，所以此时无需创建对象。
+3. `in`修饰形参时的作用
+   1. 和`ref`、`out`相同，保证参数按引用传递。
+   2. 但类似于C++中的`const`引用，`in`保证该参数本身不会在函数内被修改。
+4. AIP存在什么问题？
+   1. 无法内联初始化。
+   2. 由于AIP的field命名由编译器控制，名称可能会更改，所以依赖元数据中的field命名的反序列化机制可能无法正确反序列化该类型实例。
+5. 事件和委托之间的差别
+   1. 委托是类型，事件是包装了对应委托类型的对象
+   2. 事件包装了对应类型的委托：添加了`add`，`remove`的机制，同时取消了外部对于委托的触发权限等。

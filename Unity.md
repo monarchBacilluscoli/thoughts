@@ -396,14 +396,14 @@
 2.  加速的典型用法是：
     1. `Mathf.MoveTowards(velocity.y, m_speed, m_acceleration * Time.deltaTime)`
 3.  C# Event的修饰符是`public`，但是在Unity中的`UnityEvent`则不用
-4.  OnTriggerExit没法在物体deactiveted的时候被调用
+4.  `OnTriggerExit`没法在物体deactiveted的时候被调用
 5.  检测碰撞一节使用了`collider.gameObject.activeInHierarchy`，这是否意味着此处存在“子物体active但父物体unactive”的情况？
     1.  对，并且物体被disable和collider被disable是两个东西
     2.  但是这里`!collider`的检查似乎不可用，应该是`!collider.enabled`
 6.  To avoid needlessly invoking FixedUpdate continuously we can disable the component when it awakens and after the last collider exits. Then we only enable it after something enters. This works because the trigger methods always get invoked, regardless whether a behavior is enabled.
     1.  很有趣，这里有一个现象就是当物体处于disabled的时候OnTriggerXXX仍然能工作？
     2.  对，估计是因为OnTriggerEnter是注册给Collider组件的，所以这个函数的从属组件是否失效并不影响，影响的只是FixedUpdate这些
-7. 检查是否为hot reload（如果处于editor并且所有层级物体都enable则是）
+7. 检查是否为hot reload的方法：如果处于editor并且所有层级物体都enable则是
 8. 他这里说了一个使用Animation是OK的，但是有的时候简单的两点移动用interpolation就行了
 9. Unity无法序列化泛型事件类型，所以需要将该类型变为具体类型，即从
    ```csharp
@@ -439,3 +439,122 @@
    3. 结了
 4. 旋转矫正的这一句是什么意思？
    Quaternion newAlignment = Quaternion.FromToRotation(ballAxis, rotationAxis) * rotation;
+
+## 课程笔记
+1. activated和enable是两个东西
+
+# Charpter 5
+## Persisting-Object
+1. GetKeyDown只是第一帧返回true
+   1. GetKey可以保持
+2. 原来`System.IO`有自己的`persistentDataPath()`
+   1. 以及可以自动处理正反斜杠
+3. BinaryWrite和Reader用起来居然这么简单
+4. 模式：操，原来`Save` and `Load`自己的功能可以直接写在自己身上
+5. 模式：不同的对象的重载可以完全是不同的逻辑，比如同一个类型，Game存整个游戏，PO只存自己
+   1. 很奇怪，这里Storage的Save&Load接收PersisitableObject然后调用它自己的Save&Load给他writer&reader...很搅合
+      1. 这里的逻辑就是存有PS的PO（Game）调用了PS.Save(this)去存储另一些PO（Prefab）
+      2. 上面的PS.Save(this)在内部调用的是Game对PO的重载，这个重载不像那些PO一样只存储自己，而是存储整个游戏。
+      3. 太迷了，读取任何游戏对象的时候要构建那个SaveReader并传入，然后SaveReader构建的时候就需要传入文档之中读取的版本号
+         1. 于是只能某一类有这个SaveReader的内部BReader，在构造器中先对这个存档进行读取然后传回当前对象...嗯
+         2. 至于调用这个构造器的，那应该是一个管理类
+            1. Storage和Game的关系就是：
+               1. G调用S，传入G
+               2. S调用G，传入S.writer
+6. Instantiate可以接受任意自定义类型，然后只要Prefab上有这个组件，就能赋值给这个组件类型的变量并由Instantiate初始化这个prefab
+7. 
+## Object-Variety
+1. script可以是组件，也可以是一种Asset！
+   1. 类型继承ScriptableObject——这就是一种asset了
+   2. 类型用[CreateAssetMenu]——这就可以在Unty的menu中显示了！
+2. [Statistics](https://docs.unity3d.com/cn/2018.4/Manual/RenderingStatistics.html)窗口信息
+   * Batches：批处理的批次
+   * Saved by batching：合并的批次数量
+   * Tris & Verts：三角形和顶点数目
+   * SetPass：渲染pass的数量，每个需要一个新的着色器，可能会带来CPU开销
+   * Visible Skinned Meshes：渲染的蒙皮网格数量
+3. 在Instantiate一个对象的时候，如果对象有一个只需单次设定的id之类，可否使用`readonly`和ctor结合实现这一目标？
+   1. 不可，因为在`Instantiate()`对象的时候无法调用ctor
+4. `Debug.LogError()`和`Debug.Log()`有何不同
+5. 用存档版本号来区分不同存档
+6. **`PropertyBlock`到底是啥**
+7. `Destroy()`可以用于组件、GameObject或者asset
+
+### Reusing-Objects
+1. 奇怪，一个float的property在事件下拉里会有一个dynamic和一个static
+   1. That happens when you picked CreationSpeed from the Static Parameters list. As its name implies, that allows you to configure a fixed value to use as the argument, instead of the dynamic slider value. You have to use the dynamic option instead
+2. 模式：计时overshoot的时候减去预计值得到overshoot，视作下一次的开始
+   1. 然后overshoot可能会超过2，于是乎写一个while循环，如果>=1则一直进行上例
+3. 模式：recycling：将某个物体deactivated并将之放到回收池中
+   1. 创建的时候再从回收池移除并Activate之
+4. 模式：array中删除一个对象——将最末尾对象拷贝到当前对象的位置并删除末尾对象
+5. `ScriptableObject`到底有什么屌的使其可以变成asset
+6. 命名：shapeToRecycled
+7. 把pools序列化好像不是很好，为什么？
+   1. Can't we just mark pools as Serializable? That will make Unity save the pools as part of the asset, persisting it between editor play sessions and including it in builds. That is not what we want.
+8. 模式：有些物体不必要copy到所有出现的scene中，可以只放在自己的scene并且结合
+   1. 灯光是activated的那个scene的灯光
+9. `SetActiveScene`和`GetActiveScene`都不能在scene创建的当前帧get到
+10. 协程：StartCoroutine
+    1.  yield
+    2.  IEnumerator
+11. 烘焙场景的灯光数据代表了什么？
+<!-- ? 了解一下协程 -->
+12. Awake gets invoked immediately when the scene is loaded, but doesn't count as loaded yet. Start and later Update invocation happens afterwards, when the scene is offcially loaded.
+13. Scene会面临几个问题：
+    1.  Load和Get/Set没法在同一帧
+    2.  `Awake()`没法get到完全loaded的scene
+    3.  load scene之后记得`SetActive()`
+14. 有病啊，为什么我要在for循环里进行input检测？
+   ```csharp
+   void Update () {
+		// …
+		else if (Input.GetKeyDown(loadKey)) {
+			BeginNewGame();
+			storage.Load(this);
+		}
+		else {
+			for (int i = 1; i <= levelCount; i++) {
+				if (Input.GetKeyDown(KeyCode.Alpha0 + i)) {
+					StartCoroutine(LoadLevel(i));
+					return;
+				}
+			}
+		}
+		// …
+	}
+   ```
+15. 注意这俩的区别
+    1.  GetSceneAt
+    2.  GetSceneByBuildIndex
+        1.  build编号一定要在build中真正有那个scene时才会生成
+
+### Spawn Zone
+1. 如果对象的引用跨了scene，Unity将阻止该引用，两个解决方案：
+   1. 使用存储引用的对象去遍历引用所在的scene的层次结构
+   2. 让引用所在的scene去设定这个property
+2. 静态变量在compilation之间不会保存，为了恢复，只好在OnEnable()中重设他们
+   1. 过程：
+      1. 所有组件disabled
+      2. 游戏状态被save
+      3. 重新编译
+      4. 重置游戏状态
+      5. 所有组件enabled
+3. 将field从public变为private [serializeField]不会导致挂载的对象失效
+
+### More Game State
+1. `Random`是一个静态对象
+2. 模式：将当前Level的信息放到静态类全局可见直接调用。
+   1. 注意它是怎么就解耦了的
+3. **如何调试在Unity中最后才报出来错的内容？**毕竟Unity整个程序在这边断点的时候会挂起，如何让这个时候就在编辑器这边弹出出错信息？
+4. `using()`包含的语句中如果使用了协程，并且协程中使用了`using()`中取得的系统资源，那么会导致问题因为：
+   1. using中的资源（是文件而非BinaryReader）在括号结束时就会被释放，这样在异时/异处使用它就会导致诸如“Cannot access a closed file”的错误
+   2. 解决之道：
+      1. 完全不用using，而是手动释放。在所有位置都进行释放比较考验耐心和技术
+      2. 实践：这个情况是由于读取存档的中间需要加载场景才能继续后面的读档和应用存档数据（这些数据是基于场景的），场景加载比较慢并且需要一帧之后才会真正加载完毕，所以才使用协程。特定于于这个案例，我们可以先将所有数据一次全部读取出来再慢慢处理。
+      3. **疑问**：
+         1. 这里使用的是先读入内存，然后就完全不用担心。
+            1. 那么读入内存指的是？我是否可以一直开启该文件而不释放？如果不能，那影响是什么？文件读取器的Dispatch到底做了什么事情？
+            2. 所以唯一的差异就是BinaryWriter的构造器中接受了内存流。那么这怎么就可以了？内存流就可以安全被释放？
+5. 模式：可以在某个需要保存的对象的类中设置list，存储所有待存储对象，遍历之并调用其Save方法
+   1. UI也要记得更新
