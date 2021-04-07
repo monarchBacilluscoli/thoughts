@@ -21,3 +21,9 @@
    1. 正交投影——从world space到canonical volume (space)
    2. 屏幕投影——从canonical volume到screen space
    3. 将两个矩阵相乘可以变换所有的坐标
+
+## 光栅化
+- [ ] 处理三角形共用边的方法没有理解
+- [ ] 为什么behind eyes的三角形经过变换会变到视野的前方？
+   1. 看来这和透视变换的特性有关，回去关注一下透视变换。
+      1. 可能要从增加的那个行开始看起。
