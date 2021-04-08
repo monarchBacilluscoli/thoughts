@@ -1,4 +1,4 @@
-# 课程
+# 课程&实践
 1. scene是文本文件
 2. excel实际是二进制文件
 
@@ -20,4 +20,23 @@
 3. 音频和动画部分和逻辑要拆分，具体怎么拆分？
    1. `State`中的`SetGraphics()`?
    - [ ] 理顺逻辑拆分
+
+## What I can learn from other people
+- gxy：
+  - [ ] 后处理
+  - [ ] 他所使用的TA工具
+- K：
+  - [ ] 建模所使用的工具
+  - [ ] 如何搞定材质和贴图的
+
+## What I should read
+- 图形学：
+  - [ ] 龙书
+- 编程模式：
+  - [ ] 游戏编程模式
+  - [ ] Game Framework
+- 计算机网络：
+  - [ ] TCP/IP
+- Unity
+  - [ ] 重新捋一眼Manual（DR）
   
