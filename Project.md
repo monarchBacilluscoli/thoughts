@@ -39,4 +39,10 @@
   - [ ] TCP/IP
 - Unity
   - [ ] 重新捋一眼Manual（DR）
-  
+
+## 关于Debug
+1. UI控件无法交互
+   1. 可能是`EventSystem`没有挂
+2. `Quaternion.LookRotation(Vector3 forward, Vector3 upwards = Vector3.up)`的用法：
+   1. 将本地z轴和`forwad`对齐，将本地y轴和`upwards`对齐
+   2. 这里实际上很有迷惑性，如果`forward`和`upward`并不是z和y的话，所以只需要记住，这个函数的作用是将z和y对齐即可。
