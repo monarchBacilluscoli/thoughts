@@ -57,3 +57,30 @@
 5. `UnityEvent`被修改之后需要重新登记
 6. 动画修改了，一定记得Apply
 7. Build出错可能宏定义（Editor）。
+
+## 关于Mirror
+1. 设置玩家
+   1. 给到可以同步的`SyncVar`
+   2. 使用`Command`来设定client->server对这些玩意的设置。
+   3. 给这些`SyncVar`挂上hook，让他们被改变的时候可以自动设置并非SyncVar的参数的值（因为SyncVar只能是简单类型，复杂类型无法直接被Sync）
+   这样就可以以一种Command的形式调用server scene的玩家的修改了——暴露出来的修改Command，Sync的Var以及hook构成了不同客户端交互的手段。
+2. 这里似乎暗含了几个限制
+   1. server到client和client到server的逻辑要通过attribute分开
+   2. 服务器会调command嘛？
+      1. 不会
+      2. 断点被命中的原因是因为**Host = client+server**
+         1. 当前玩家（Editor）开启Host的时候会命中
+         2. Client玩家开启Client的时候也会命中
+3. `SyncVar`是
+   1. 由服务器自动同步（无需管理）给客户端的
+   2. 继承了`NetworkBehaviour`的类中的properties
+   3. 所以修改他们的值需要由server来进行，从clinet上修改是pointless的
+      1. 于是修改这些值的方法要写`[Command]`
+4. 它的修改逻辑是使用local值作为临时值，计算完毕后修改SyncVar...莫非在一个Update中的多次修改也会引发大量网络调用？
+   1. 或许读取的时候也会存在逻辑？
+5. `Command`是
+   1. Commands are sent from **player objects on the client** to **player objects on the server**. 
+   2. Commands can only be sent from **YOUR player** object by default
+      1. 所以所有的同步请求都要从`Player`去的话，所有的物件都必须要持有`Player`了
+6. 带有`NetworkIdentity`组件的对象会在开局但是Player并没有Spawn的时候被disabled。
+7. 创建网络物件，需要用`NetworkServer.Spawn`才行，这样创建的物件会有一个`netId`，才会被服务器同步到所有客户端中
