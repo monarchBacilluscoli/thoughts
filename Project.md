@@ -83,4 +83,7 @@
    2. Commands can only be sent from **YOUR player** object by default
       1. 所以所有的同步请求都要从`Player`去的话，所有的物件都必须要持有`Player`了
 6. 带有`NetworkIdentity`组件的对象会在开局但是Player并没有Spawn的时候被disabled。
+   1. 所以如果需要在开局的时候持有这些组件，也许需要将这些组件挂在另一些不被disabled（非网络）的物体上
 7. 创建网络物件，需要用`NetworkServer.Spawn`才行，这样创建的物件会有一个`netId`，才会被服务器同步到所有客户端中
+8. `isServer` —— True if this object is on the server and has been spawned.
+9. networkmanager中的offlineScene使得掉线玩家会回到这个，并且访客会在房主掉线时回到这个
