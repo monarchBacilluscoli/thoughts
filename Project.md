@@ -39,4 +39,9 @@
   - [ ] TCP/IP
 - Unity
   - [ ] 重新捋一眼Manual（DR）
+
+
+
+Only player game objects can send commands.
+SyncVar是自动和客户端同步的字段，不能在client中被修改（没有意义）。所以修改它要调用Command
   
