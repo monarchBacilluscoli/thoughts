@@ -18,14 +18,15 @@
 2. 状态机的大部分逻辑都是一致的，可以合并为一个基类或者一个组件
    1. 一个基类似乎并不合适
    2. 组件还不是要在Mono的各个函数中反复去调用那些方法？
-   - [ ] 查看合并的可能性
+   - [x] 查看合并的可能性
 3. 音频和动画部分和逻辑要拆分，具体怎么拆分？
    1. `State`中的`SetGraphics()`?
-   - [ ] 理顺逻辑拆分
+   - [x] 理顺逻辑拆分
 4. active和enable的区别
    1. `GameObject`可以被Activated，脚本可以被enabled
    2. 
-5. 
+5. 向上持有和向下持有应该如何做？
+   1. 比如player有个hand作为投掷起点，手有自己的力度，但是设定时希望通过player设定，那么调用的时候应该是player设定hand的power还是hand不存power只从player中取
 
 ## What I can learn from other people
 - gxy：
@@ -87,3 +88,20 @@
 7. 创建网络物件，需要用`NetworkServer.Spawn`才行，这样创建的物件会有一个`netId`，才会被服务器同步到所有客户端中
 8. `isServer` —— True if this object is on the server and has been spawned.
 9. networkmanager中的offlineScene使得掉线玩家会回到这个，并且访客会在房主掉线时回到这个
+10. 客户端 actually shares the Scene with the server.
+11. `Network Object`的作用是同步该物体的创造和消除。而别的东西则不会管理
+12. 
+
+### 问题
+2. 玩家的状态都可以在服务器上修改并且同步到客户端，根据hook可以对客户端的表现进行修改
+   - [ ] 但是创建物体呢？
+- [x] 我把碰撞并调用修改player血量的逻辑写到本地的bullet的OnCollision()里了，按道理说会执行客户端数量的次数，为什么没有？
+   1. 首先，执行了客户端数量的次数的command call
+   2. 但是，command call调用的是player.ModifyHealth()，这个是否成功，要看client有没有这个player的authority，显然只有一个client有，所以抛出了一个warning，并执行成功了1次。
+- [ ] 我可以修改player的数据了，但是非Player的数据呢？
+  - [x] 比如我创建了一些物品掉落，是可以在每个client中分发
+  - [ ] 如何捡起该物品？
+    - [ ] 看一下教程
+    - [ ] 据说responable的物品要在Manager中registered，为什么呢？
+      - [ ] In addition to the Player Prefab, you **must also** register other prefabs **that you want to dynamically spawn during game play** with the Network Manager.
+  - [ ] 如何不捡起该物品但是可以控制该物品？
