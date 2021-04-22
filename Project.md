@@ -47,6 +47,8 @@
 - Unity
   - [ ] 重新捋一眼Manual（DR）
 
+
+
 ## 关于Debug
 1. UI控件无法交互
    1. 可能是`EventSystem`没有挂
@@ -57,7 +59,12 @@
 4. 物体的动画逻辑跟组件关系很大
 5. `UnityEvent`被修改之后需要重新登记
 6. 动画修改了，一定记得Apply
-7. Build出错可能宏定义（Editor）。
+7. Build出错可能因为宏定义（Editor、Debug之类）。
+   1. 所以如果没捋清楚可以不用
+   2. 要么所有的东西都包在一起
+8. **重要！**Quaternion.FromToRotation()好像是差值，而LookAt()是绝对值
+9. 两个Quaternion直接相乘是先用lhs后用rhs
+10. `Quaternion.AngleAxis()`的意思是围绕某个Axis旋转多少度，而不是在这个方向上添加扰动旋转
 
 ## 关于Mirror
 1. 设置玩家
