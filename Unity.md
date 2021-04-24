@@ -408,12 +408,12 @@
 9. Unity无法序列化泛型事件类型，所以需要将该类型变为具体类型，即从
    ```csharp
    [SerializeField]
-   UnityEvent<float> onValueChanged = default;
+   UnityEvent<GameObject> onValueChanged = default;
    ```
    派生为
    ```csharp
    [System.Serializable]
-   public class OnvalueChangedEvent:UnityEvent<float>{}
+   public class OnvalueChangedEvent:UnityEvent<GameObject>>{}
 
    [SerializeField]
    OnValueChangedEvent onValueChanged = default;
