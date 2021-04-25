@@ -112,3 +112,10 @@
     - [ ] 据说responable的物品要在Manager中registered，为什么呢？
       - [ ] In addition to the Player Prefab, you **must also** register other prefabs **that you want to dynamically spawn during game play** with the Network Manager.
   - [ ] 如何不捡起该物品但是可以控制该物品？
+- [ ] 不是`Monobehaviour`如何才能在外部配置它的属性？
+- [ ] 如何合理利用继承？
+  - [ ] 例如父类具有一个计时和最大时间的字段，所有子类都需要同一套计时逻辑在`Update()`中实现，但是`Update()`中按道理说还需要进行具体的行为应用，这里的最佳实践是什么？
+    - [ ] 父类如果把`Update()`函数设置为`virtual`给子类，那么这里没有手段要求子类必须要首先调用父类的`Update()`
+    - [ ] 父类如果真的不实现子类，那么把`Update()`给子类实现子类需要查看父类的字段来揣摩意义
+    - [ ] 父类实现了`Update()`，然后在Update中调用子类的`UpdateApplyLogic()`，这样很多叠加嘞
+    - [ ] 该问题以及相关的解答体现了怎样的哲学？
