@@ -1051,15 +1051,28 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 4. 操，**类型的方法表中包含**：
    1. 继承的所有类/接口的*虚方法*——它必须要在那里，哪怕没有重写都要在那里，那我才能实现同一个entry的多态机制
    2. 引入的*新方法*——毫无疑问
-   意思是说，找父类的方法，真的就只能上溯
+   意思是说，找父类的方法，真的就只能上溯。也就是说，只有可能被该类型实现的，以及确实被该类型实现了的会出现在这里
 5. 接口名称作为方法名的前缀就是显式定义接口方法EIMI，
    1. 此时并不允许`public`，只有默认的`private`
+<<<<<<< HEAD
+      1. 表明不能被外部调用，只有**接口变量**（？？？）才能够调用这个方法（这不也是外部调用？这和private的语义有点冲突啊？有冲突）
+=======
       1. 表明只有*接口变量*才能够调用这个方法（这和`private`的语义有点冲突啊？有冲突）
+>>>>>>> be8c1817429a270fa3886ba046bfbcd72bf0e8ee
 6. EIMI方法*不能被重写*
    1. 这表明了这一类方法确实*不是对象模型的一部分（不能继承）*，应该只是一种纯粹的“组合”，视作新实现的非`virtual`的`private`方法。
 7. 泛型接口的优势：
    1. *编译期类型安全*
    2. *效率高*
+<<<<<<< HEAD
+      1. 注意：如果某个值类型实现了非泛型接口，如IComparable，那么：
+         ```csharp
+            SomeValue a,b;
+            a.Compare(b);
+         ```
+         在这里，注意**a调用Compare的时候不发生装箱**。但是传入b的时候会发生装箱（效率高说的是省了这一次装箱了）。
+8.  *C#编译器为接口约束生成特殊的IL指令导致直接在值类型上调用接口方法不用装箱*...实际上是带有接口协定的泛型类型参数使得可以直接在该类型参数的形参上直接调用接口方法（而不用先转为Object再到接口类型才调用），从而减少了装箱
+=======
 8. 如果某个值类型实现了非泛型接口，如`IComparable`，那么：
    ```csharp
       SomeValue a,b;
@@ -1067,6 +1080,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    ```
    在这里，a调用`Compare()`的时候不发生装箱。但是传入b的时候会发生装箱。
 9.  *C#编译器为接口约束生成特殊的IL指令导致直接在值类型上调用接口方法不用装箱*...实际上是带有接口协定的泛型类型参数使得可以直接在该类型参数的形参上直接调用接口方法（而不用先转为Object再到接口类型才调用），从而减少了装箱
+>>>>>>> be8c1817429a270fa3886ba046bfbcd72bf0e8ee
 ### 显式接口方法实现来增强编译时类型安全性
 1. 实际上就是用类型特化方法来在变量类型是当前值类型的时候替代同名*非泛型*接口方法。同时给同名接口方法一个非类型特化实现
 2. 用于处理按`该类型变量.接口方法(实参)`的形式调用接口方法时避免非泛型接口（因为有的时候只有非泛型接口）导致实参装箱的问题
@@ -1083,33 +1097,37 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 字符
 1. Char包含：
    1. 两个公共只读常量
-   2. 存储为一个16位的Unicode代码
+   2. 存储为一个**16**位的Unicode代码
 2. Char静态：
    1. Category
    2. Is
+3. 奇怪，这里又介绍了值类型上调用接口方法会装箱
 ### System.String类型
-1. 神奇了，`String`这种基元类型并不是在栈上，*而是在堆上，是引用类型*，那自然会进行GC。
+1. 神奇了，`String`这种基元类型并不是在栈上，**而是在堆上，是引用类型**，那自然会进行GC。(要不怎么会有留用这种东西)
    1. 但是它基元的体现是，编译器允许在源代码中直接使用字面值字符串
-   2. 但是另一个神奇的点在于，*字符串又是immutable的*！
+   2. 并且IL代码是`ldstr`
+   3. 但是另一个神奇的点在于，*字符串又是immutable的*！
       1. 优势：
          1. 操作不改变原字符串...
          2. 线程同步无需考虑，从而允许字符串合并——留用
+      2. 劣势：
+         1. 对于其看似修改的方法产生的都特么是一把一把需要GC的临时值
 2. `@`用于声明非转义的逐字字符串
 3. 密封类（基元类型为了避免破坏都有可能密封）
-4. 比较字符串就各种语言文化敏感啦啥的
 5. *字符串留用*：
-   1. 哈希表
+   1. 用处：存储时节省内存，比较时节省时间
+   2. 哈希表
       1. key：字符串
       2. value：托管堆`string`对象的引用
-   2. 方法：
+   3. 方法：
       1. Intern
       2. IsInterned
-   3. 字面值字符串默认留用——现在禁用了MB
-   4. 用法：
+   4. 字面值字符串默认留用——现在禁用了MB
+   5. 用法：
       1. 假设要比较的所有字符串已经留用
       2. 留用将要比较的单词
       3. 于是可以用`Object.ReferenceQquals`来比较
-   5. 感受：你完全可以实现你自己的字符串留用机制
+   6. 感受：你完全可以实现你自己的字符串留用机制
 6. *字符串池*
    1. *元数据中只出现一次字面值，其他的都引用它*
       1. 啥玩意？如何实现的？
@@ -1123,8 +1141,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 要实现`IFormatable`才行
 ### 编码：字符和字节的相互转换
 1. 使用`System.Text.Encoding`
-   1. 这里有UTF8、UTF16和本地代码页方法
-   2. 过程是编码成字节数组、或者从字节数组解码成字符串
+   1. 这里有`UTF8`、`Unicode`和本地代码页方法
+   2. 过程是编码成字节数组（`GetBytes()`）、或者从字节数组解码成字符串（`GetString()`）
 2. 字节流的编解码：
    1. 前面所说的Encoding不记录状态，流传输读了半个字符就很傻
    2. `Encoding.GetDecoder`
@@ -1134,23 +1152,27 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       3. 下次再来的时候连接上去
 ### 安全字符串
 1. `System.Security.SecureString`
-2. 机制：
+2. 普通字符串问题
+   1. 首先明文字符串肯定是可以被扫内存扫出来的
+   2. GC需要等待才能回收内存
+   3. 不可变导致处理时可能出现很多副本
+3. 机制：
    1. 使用*非托管内存——避免垃圾回收*
    2. 在进行任何增删改查的时候*解密->处理->加密*
-   3. `Dispose()`可以清除非托管内存的缓冲区
+   3. `Dispose()`可以彻底清除非托管内存的缓冲区——不用等GC
 
 ## 枚举类型和位标志
 ### 枚举类型
 1. 特点：
-   1. 枚举类型是*值类型*
+   1. 枚举类型是*值类型* `Object`->`ValueType`->`Enum`->具体枚举
    2. 强类型
    3. *基元类型*
       1. 可以用各种操作符来操作
    4. 不能定义任何方法
 2. 结构：
-   1. 一组`const int`
+   1. 一组`const int`，相当于静态值
    2. 一个当前值
-3. 运行时不需要符号，编译时才需要
+3. 编译时将枚举类型从符号变成了数字，所以**运行时就不需要枚举类型的程序集**了
 4. 可以声明基础类型是`byte`, `sbyte`, `short`, `ushort`, `int`等等
    1. 语法
       ```csharp
@@ -1167,10 +1189,10 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 2. 需要应用定制特性`FlagsAttribute`
    1. 当应用该特性时，`ToString()`会把数值拆分
       1. *降序排列数值*（*先处理All*，如果有了就不用搞了）
-      2. 和实例进行按位与，如果结果ok，则视作存在，附加到字符串，并将该数值位置置0
+      2. 实例和这些数值一个个进行按位与，如果等于实例，则视作存在该数值，附加到字符串，并将该数值位置置0
       3. 如果最后还不为0，则直接输出原始数值
       4. 否则输出组合
-3. `Enum`也可以`Parse`
+3. `Enum`也可以`Parse`：按逗号分割或者按数字来
 4. `IsDefined()`时输入一串以逗号分隔的字符串时不行，因为它会视作一个key进行处理
 ### 向枚举类型添加方法
 1. 扩展方法么
@@ -1185,19 +1207,23 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 下限
    3. 长度
    4. 元素类型
+      1. 用于处理数组的协变性（例如`String[] sa`可以赋值给`Object[] oa`，但是此后这个oa每次被赋值的时候都会check是否元素是`String`）
 ### 初始化数组元素
 1. *数组初始化器*
    1. 注意区分值类型初始化器，那个可能要指定变量名的，这个不需要
-2. 初始化可隐藏各种类型，但是元素类型必须一致
+2. 初始化可隐藏new之后的类型，会推断出公有类型
+   1. 但是值类型和引用类型混合公有类型为`Object`，值类型发生装箱则不被CLR允许，因为成本太高
 ### 数组转型
 1. 引用类型只要有隐式/显式转型符即可转型（*维度一致*）
 2. 值类型不能直接转换和为元素赋值
-   1. 可以用Array.Copy
+   1. 可以用`Array.Copy`(做了很多事情)
       1. 值->引用 装箱
       2. 反过来拆箱
       3. 加宽类型
 ### 所有数组都隐式派生自System.Array
-1. Array提供了`Clone`、`CopyTo`、`Length`等等
+1. 所以`String[]`不能被看作仅仅是像C一样一段存储了连续`String`变量的内存，而是也是一个类型。
+2. 继承关系如：`Object->Array->Object[]->String[]`注意有一个迂回
+4. `Array`提供了`Clone`、`CopyTo`、`Length`等等
 ### 所有数组都隐式实现IEnumerable、ICollection和IList
 1. 一维数组会实现泛型版本
    1. 会在“CLR创建这个类型的时候”，为数组存储的这个类型及其基类实现这些接口
@@ -1222,7 +1248,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       1. 一维0基
       2. 仅包含值类型
       3. 值类型中还不能有任何引用类型的字段（怕是它不归GC、移动等管理...废话，指针的值是fixed）
-2. `struct`之中也可以嵌入
+2. 内联数组：`struct`之中也可以嵌入
    ```csharp
    internal unsafe struct CharArray{
       public fixed Char Characters[20];
@@ -1243,25 +1269,26 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. 注意委托也是要new的，毕竟也是一个类型的实例
 2. 编译器自动将委托的声明定义为一个类型
    1. 继承关系`Object->Delegate->MulticastDelegate`
-   2. 委托内部的实例方法：
-      1. 构造器
-         1. 参数——方法指针和实例引用
-            1. 在写代码的时候并没有明确object，这个步骤是csc给你做的
-      2. `Invoke()`
-      3. `BeginInvoke()`和`EndInvoke()`
-   3. 静态方法：`Combine()`和`Invoke()`
-   4. Fields:
-      1. `_target`
-      2. `_methodPtr`
-      3. `_invocationList`
+   2. 与委托实现有关的重要成员：
+      1. **从`MulticastDelegate`继承**的field
+         1. 实例对象`_target`
+         2. 方法指针`_methodPtr`
+         3. 委托链`_invocationList`
+      2. 自有方法：
+         1. 构造器
+         2. `Invoke()`
+         3. `BeginInvoke()`和`EndInvoke()`
+   3. 静态方法：`Combine()`也就是`+=`，`Remove()`（对比的是_target和_methodPtr和传入参数是否一致）和`Invoke()`
 ### 用委托回调多个方法（委托链）
-1. 建立委托链的中间过程会产生很多临时对象（可简单将委托视为immutable的），那些对象都会被GC
+1. 建立委托链的中间过程会产生很多临时对象（可简单将委托视为immutable的（但是，特么这个和String一样都是引用类型）），那些对象都会被GC
 2. 调用委托链的时候会依序调用
 3. 委托被调用只有最后一个结果可以保存
 4. 可以通过`GetInvocationList()`来返回一个Invocation的列表从而自行进行调用控制
 ### 委托定义不要太多
-1. Func和Action不能定义带ref和out参数的
+1. `Func`和`Action`不能定义带`ref`和`out`参数的
 2. *`params`、默认参数、泛型参数约束*等都需要定义自己的委托类型
+3. 所以定义自己的委托类型是否会有利于类型安全？
+   1. 不会，因为方法的“类型”只是方法签名的形式，所以即使不同名称的委托，互相之间实质上是一样的东西，形式ok的方法可以向他们赋值
 ### C#为委托提供的简化语法
 1. 不需要非要`new`一个`delegate`的类型
 2. 匿名函数就比较难受
@@ -1273,6 +1300,11 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 调用时当然先要得到前面的`MethodInfo`，方法也很简单
       1. `typeof(某个type).GetTypeInfo().GetDeclaredMethod("函数名")`
    3. 然后就用这个返回的对象`CreateDelegate()`就好了。
+2. 至于不定数量和类型的参数的支持就要依赖于DynamicInvoke()了
+   ```csharp
+   Object DynamicInvoke(params Object[] args);
+   ```
+   运行时构建参数数组，投喂即可
 
 ## 定制特性
 ### 使用定制特性
@@ -1287,9 +1319,13 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       2. 具名参数就像值类型的initializer一样是公共field或property（optional）
    2. 构造之后特性的*所有状态*都会被序列化到*目标元素*的*元数据表记录项*中
 4. 定制特性也是一个类的实例，从`System.Attribute`中*直接或间接*派生（说白了是引用类型）
-5. 特性当然也可以修饰特性类，比如用于修饰特性用法的`AttributeUsage`
+5. 特性当然也可以修饰特性类，比如用于修饰特性用法的`AttributeUsage`以及两个比较重要的：
+   1. `AllowMultiple`
+   2. `Inherited`
+   3. `Conditional`
+      1. 但是该特性会被编译，只是不会进到使用者的元数据之中而已
 ### 特性构造器和字段/属性数据类型
-1. 特性的*各类数据通常情况下都要在编译期能够求值*（字面值/常量表达式，因为需要序列化到元数据之中）。
+1. 特性的*各类数据通常情况下都要在编译期能够求值*（字面值/常量表达式，因为需要**序列化到元数据之中**，而到元数据之中的序列化毫无疑问是由编译器做的）。
 ### 检测定制特性
 1. 特性仅被标记，没有相应的处理逻辑则没有屁用
 2. 这个处理逻辑的基础是“反射”
@@ -1302,29 +1338,27 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 两个特性实例的相互匹配
 1. 进行`Equals`或者`Match`匹配的时候还不是要老老实实构造一个对象并且对比。但为什么不能直接对比字段呢？
    1. 哦，因为那个字段是private的
-   2. 那为什么不能写property？当然可以，只不过书中认为这是“老老实实写代码”的方法。
+   2. 那为什么不能写property？当然可以，只不过书中认为这也是“老老实实写代码”的方法。
 ### 检测定制特性时不创建从Attribute派生的对象
 1. 使用`CustomAttributeData.GetCustomAttibutes()`，它会提供一些：
    1. `DeclaringType`——描述函数的参数、返回值
    2. `ConstructorArguments`——描述定位参数
    3. `NamedArguments`——命名参数
    4. 这些输出描述的方法
-### 条件特性类
-1. `ConditionalAttribute`可以用于修饰`Attribute`类型
-   1. 只有在定义ConditionalAttribute之中指定的符号时才会在元数据中生成该特性信息。
-   2. 但是该特性会被编译，只是不会进到使用者的元数据之中而已
 
 ## 可空值类型
-1. 就是`strcut`
+1. 也是值类型，一个`strcut`
    1. 一个`hasValue`（默认是空）
    2. 一个`value`
 ### C#对可空值类型的支持
-1. 声明和定义：可以用类型+`?`的形式来搞定
+1. 可空值类型也是一等公民，这里应该指的是编译器直接支持的玩意，而二等公民则是由一等公民组合而来
+   1. 编译器的支持可能分为各种类型，第一种就是`int`这种，四则运算在IL里一句搞定；至于另一种就类似可空值类型的四则运算，就是csc给生成一堆代码来支持了
+2. 声明和定义：可以用类型+`?`的形式来搞定
    ```csharp
    Int32? x = 5;
    Int32? y = null;
    ```
-2. 允许转型、操作符
+3. 允许转型、操作符
    1. 其他的只要有一个是`null`结果就是`null`
    2. 操作符`&`和`|`有差别：
       1. `&`选最拉胯的那一个
@@ -1333,17 +1367,17 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 实际运算时的逻辑(`+`)：
       1. 检查两者是否为空
       2. 如果都不为空则返回结果
-      3. 否则返回null
-3. 自己定义的可空值类型也可以正常调用重载的操作符和方法
+      3. 否则返回`null`
+4. 自己定义的可空值类型也可以正常调用重载的操作符和方法
 ### C#的空接合操作符
 1. 语法糖
 ### CLR对可空值类型的特殊支持
 1. 注意是CLR，装箱时
    1. 如果是`null`直接装箱`null`
    2. 如果非`null`直接装箱`value`
-2. 拆箱时可以直接给到`nullable<T>`
+2. 拆箱`T`时可以直接给到`nullable<T>`
 3. `GetType()`会将其视作`T`
-4. 可空值类型可以直接转化为接口
+4. `Nullable<T>`可以直接调用`T`的接口
 5. 说白了就是把它当成value而非wraped value
    
 ## 异常和状态管理
@@ -1356,7 +1390,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 执行`catch`成功后，它再执行同级别的`finally`块
    4. 然后执行`finally`块之后的语句
 2. `finally`块是保证会执行的代码——并且在这里线程不会停止
-3. 如果`catch`和`finally`块发生异常，那么CLR的异常处理机制仍然执行
+3. 如果`catch`和`finally`块发生异常，那么CLR的异常处理机制仍然执行，就好像从finally块之后的语句抛出的一样
    1. 只不过`try`中抛出的异常将会完全丢失
 ### System.Exception类
 1. 包含：
@@ -1405,7 +1439,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       2. 在其`Data`属性中添加数据
 ### 未处理的异常
 1. 应用程序应该建立处理*未处理异常*的策略，*类库开发者用不着去关心这个*
-### 对异常进行tiaoshi
+### 对异常进行调试
 1. VS中可以勾选有些异常调试
    1. 指的是在被`catch`之前就被捕捉到
 ### 异常处理的性能问题
@@ -1422,24 +1456,24 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 使用资源
    4. 摧毁状态（实际是本地资源）以进行清理（一般不需要，就是那些`Dispose()`）
    5. 释放内存
-2. NextObjPtr在new过程中的变化：
+2. `NextObjPtr`在new过程中的变化：
    1. 计算类型所需字节数
    2. 加上overload来分配
-   3. 调用构造器初始化
-   4. 检查是否有足够空间，分配对象，返回地址，`NextObjPtr += size`。
+   3. 检查是否有足够空间，分配对象，返回地址，`NextObjPtr += size`。
+   4. 调用构造器初始化
    这里暗示了托管堆的理想情况也是*线性扩展*
 3. 发生垃圾回收的时间：
    1. new操作符发现第0代不够
       1. 如果只有0代超出，那只GC 0代
       2. 如果*因为0代刚分配完导致1代超出那么本次不会进行1代GC*，会顺延到下次
       3. 如果没有回收到足够的内存，就会执行完整回收
-   2. 显式调用Collect（回收2代）
+   2. 显式调用`Collect`（回收2代）
    3. *Windows报告（系统总体）低内存*（大收紧，回收2代）
    4. CLR正在*卸载AppDomain*（小关闭）
    5. *CLR正在关闭*（大关闭）
 4. 根：所有*引用类型的变量*
 5. *同步块索引*有1位在GC中的用处：
-   1. GC扫描时该位设为`0`，表示对象应删除
+   1. GC扫描时该位设为`0`，表示对象**应删除**
 6. 引用计数和引用跟踪：
    1. 引用计数会计数
    2. 跟踪只标明0/1
@@ -1474,26 +1508,27 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 2. 存在Finalize对象会被提升至+1代，在GC后才专门用一个高优先级线程调用`Finalize`方法
 3. `SafeHandle`继承自`CriticalFinalizerObject`
    1. 会立即编译`Finalize`
-   2. 调用非Critical之后调用
+   2. 调用非Critical的Finalizer之后才会调用critical的
    3. AppDomain被强行结束时也会调用
 4. SafeHandle用于自动控制包装的本机资源
 5. Dispose用于手动控制本机资源
 <!-- 6. using可自动于finally中调用Dispose() -->
 7. 有的时候存在*托管对象很小，托管的实际资源很大*：
-   1. Add/RemoveMemoryPressure（添加实际内存压力）
-   2. HandleCollector.Add（对该对象初始化最大计数，和添加计数）
+   1. `Add/RemoveMemoryPressure`（添加实际内存压力）
+   2. `HandleCollector.Add`（对该对象初始化最大计数（比如某些资源的使用会有限制），和添加计数）
 #### Finalize的内部工作原理
-1. 含Finalize的在*构造器被调用之前就会放在终结列表中*
+1. 含Finalize的在*构造器被调用之前就会放在**终结列表**中*
 2. 如果不可达，*回收之后会被放在freachable队列中*
    1. 并被*提升至更高级别*
 3. *高优先级线*程专门调用这些对象的Finalize方法并移除之
 4. 下一次清理高级垃圾的时候，所有的根都不引用这些托管垃圾了，他们就可以被安全清除。
 
-5. 四个标志：
-   6. `weak`
-   7. `weakTrackResurrection`
-   8. `Normal`
-   9. `Pinned`
+5. GCHandle，允许应用程序监视和控制对象的生存期。使用的时候传入对象和监视标志
+   1. 四个标志：
+      1. `weak`
+      2. `weakTrackResurrection`
+      3. `Normal`：必须要留存在内存中
+      4. `Pinned`：留存+位置固定
 6. fixed会让CSC在对象局部变量上生成“已固定”标记，比采用代理进行非托管代码交换的形式效率要高一些
 
 ## CLR寄宿和AppDomain
@@ -1506,6 +1541,9 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. 程序集在加载的时候CLR即是用`Assembly.Load`来加载程序集，传入的是程序的完整名称的字符串
 2. LoadFrom(path)只负责从path中获取程序集全名，然后用全名调用Load，但Load会从GAC-根目录等位置开始查找，所以找到的并不一定是自己想加载的
 3. 不执行构建但是加载的方式是`ReflectionOnlyLoad()`
+   1. 此时程序仅加载到反射上下文，而不加载到执行上下文
+   2. 亦即可以用`GetType()`等来分析程序集，但不能执行任何代码
+   3. 此外该方法必须向`ReflectionOnlyAssemblyResolve`事件注册处理依赖的方法
 4. 应用程序使用反射的情况之二
    1. 序列化——需要知道类型定义了什么内容
    2. 根据强命名加载程序集
@@ -1515,6 +1553,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    所以更推荐使用类型及接口
 6. Type和TypeInfo的区别
    1. `Type`是`TypeInfo`的轻量级引用
+7. 执行反射获取的方法时，无非就是`Invoke`，然后传入`Object`（实例方法）以及参数
 
 ## 序列化与反序列化
 1. 调用序列化器进行序列化反序列化的形式如下:
@@ -1523,7 +1562,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    // ...
    object a = Deserialize(stream);
    ```
-   这里没有显式提供任何对象有关的信息，这些信息是由序列化器通过反射get到的
+   这里没有显式提供任何对象有关的信息，这些信息是由序列化器通过**反射**get到的
 2. 如果序列化多个对象，反序列化也需要按照序列化时的顺序进行
 3. 机制：
    1. 序列化时*类型和程序集的强命名*会被写入流，然后反射得到可序列化的`MemberInfo[]`
@@ -1531,12 +1570,13 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 然后*创建类型Uninitialized实例*，并以流中的数据来初始化该实例
 4. 如果需要序列化的对象并非都可以序列化，则会在序列化*期间*抛出异常
    1. 在期间抛出异常的原因是，考虑到性能，序列化前CLR不会验证所有的字段、对象都可以序列化
+   2. 于是乎关乎异常处理，可能需要重置流状态
 5. 可以应用在
    1. 值类型
    2. 引用类型
    3. 枚举类型
    4. 委托类型
-6. Serializable不会继承
+6. `Serializable`不会继承
 ### 控制序列化和反序列化
 1. `NonSerialized`显式标记某些字段字段不要
 3. `OnSerializing`-`OnSerialized`是被序列化对象在序列化前后调用的
@@ -1549,7 +1589,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 格式化器如何序列化类型实例
 1. 流程：
    1. `FormatterServerice`反射获取`MemberInfo[]`
-   2. `GetObjectData()`传入MemberInfo()获取所有字段的值`Object[]`，和前者是一一对应的
+   2. `GetObjectData()`传入`MemberInfo[]`获取所有字段的值`Object[]`，这个玩意和前者是一一对应的
    3. 格式化器将程序集标识和类型完整名称写入流
    4. 依次将两个数组的名字-数据写入流中
 2. 反序列化流程：
@@ -1559,14 +1599,17 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    4. 格式化器获取Object[]
    5. PopulateObjectMembers()填充对象
 ### 控制序列化/反序列化数据
-1. 就是自己实现ISerializable接口
-   1. 只有一个`GetObjectData()`
-   2. 优先级大于`Serializable`特性
+1. 就是自己实现`ISerializable`接口
+   1. 目的：
+      1. 避免CLR序列化机制使用反射的性能开销
+      2. 序列化控制特性有的时候不能给到有效的控制
+   2. 只有一个`GetObjectData()`
+   3. 优先级大于`Serializable`特性
 2. 要求：
    1. 派生类也必须实现
    2. 必须在构造的时候先调用基类的GetObjectData()
 3. 组成部分：
-   1. 一个构造器用于存储SerializationInfo（可以用于直接初始化对象的）
+   1. 一个构造器用于反序列化时构造对象，或者只存储SerializationInfo用别的函数来初始化他们（比如需要重建哈希表的时候）
       1. 在其中可以调用info的各种GetValue方法
    2. 一个GetObjectData(SerializationInfo info, StreamingContext context)
    3. IDeserializationCallback.OnDeserialization(Object sender)

@@ -97,7 +97,7 @@
 9. networkmanager中的offlineScene使得掉线玩家会回到这个，并且访客会在房主掉线时回到这个
 10. 客户端 actually shares the Scene with the server.
 11. `Network Object`的作用是同步该物体的创造和消除。而别的东西则不会管理
-12. 
+12. 怪不得Network GameObjects需要注册才能在客户端创建，就像两边都需要数据集才能一边序列化一边反序列化一样，网络传输靠得也是序列化。所以需要数据集
 
 ### 问题
 2. 玩家的状态都可以在服务器上修改并且同步到客户端，根据hook可以对客户端的表现进行修改
