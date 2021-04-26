@@ -1159,6 +1159,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 2. 结构：
    1. 一组`const int`，相当于静态值
    2. 一个当前值
+   3. 还有一些能返回名称的`GetNames()`函数之类
+   4. 还有一些方法能把字符串`Parse()`成对应的枚举值，`IsDefined()`来告诉你这里有没有这个值
 3. 编译时将枚举类型从符号变成了数字，所以**运行时就不需要枚举类型的程序集**了
 4. 可以声明基础类型是`byte`, `sbyte`, `short`, `ushort`, `int`等等
    1. 语法
@@ -1176,8 +1178,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 2. 需要应用定制特性`FlagsAttribute`
    1. 当应用该特性时，`ToString()`会把数值拆分
       1. *降序排列数值*（*先处理All*，如果有了就不用搞了）
-      2. 实例和这些数值一个个进行按位与，如果等于实例，则视作存在该数值，附加到字符串，并将该数值位置置0
-      3. 如果最后还不为0，则直接输出原始数值
+      2. 实例和这些数值一个个进行按位与，如果等于**实例**，则视作存在该数值，附加到字符串，并将该数值位置置0
+      3. 如果最后还不为0，则直接输出**原始数值的字符串**
       4. 否则输出组合
 3. `Enum`也可以`Parse`：按逗号分割或者按数字来
 4. `IsDefined()`时输入一串以逗号分隔的字符串时不行，因为它会视作一个key进行处理
@@ -1194,7 +1196,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 下限
    3. 长度
    4. 元素类型
-      1. 用于处理数组的协变性（例如`String[] sa`可以赋值给`Object[] oa`，但是此后这个oa每次被赋值的时候都会check是否元素是`String`）
+      1. 用于处理数组的**协变性**（例如`String[] sa`可以赋值给`Object[] oa`，但是此后这个oa每次被赋值的时候都会check是否元素是`String`）
 ### 初始化数组元素
 1. *数组初始化器*
    1. 注意区分值类型初始化器，那个可能要指定变量名的，这个不需要
@@ -1202,8 +1204,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 但是值类型和引用类型混合公有类型为`Object`，值类型发生装箱则不被CLR允许，因为成本太高
 ### 数组转型
 1. 引用类型只要有隐式/显式转型符即可转型（*维度一致*）
-2. 值类型不能直接转换和为元素赋值
-   1. 可以用`Array.Copy`(做了很多事情)
+2. **值类型不能直接转换和为元素赋值**
+   1. **可以用`Array.Copy`**(做了很多事情)
       1. 值->引用 装箱
       2. 反过来拆箱
       3. 加宽类型
@@ -1215,16 +1217,17 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. 一维数组会实现泛型版本
    1. 会在“CLR创建这个类型的时候”，为数组存储的这个类型及其基类实现这些接口
    2. 于是允许了该数组在任何需要IE、IC、IL的时候可用
-   3. 但是如果数组包含的是值类型元素则只会实现该类型接口（因为值类型和引用类型内存布局不同）
+   3. 但是如果数组包含的是值类型元素则只会实现该类型接口，**而不会实现ValueType和Object的接口**（因为值类型和引用类型内存布局不同）
 2. IList是随机访问接口、IEnumerable是foreach接口、ICollection是增删接口
 ### 数组的传递和返回
 1. 数组参数传递时传递的是引用
    1. 如果不想修改数组最好进行Copy
    2. 但是Copy也是浅拷贝
 ### 数组的内部工作原理
-1. 0基数组循环的时候只进行一次下限和上限(也只检查一次！)检查
-2. 非0基数组和多维数组都要将check从循环中拿出来
-3. 不安全的访问方式将关闭上下限检查并且基于指针进行处理。
+1. 0基数组有不需要减去偏移的特殊IL指令例如stelem、ldelem等
+2. 0基数组循环的时候只进行一次下限和上限(也只检查一次！)检查
+3. 非0基数组和多维数组都要将check从循环中拿出来
+4. 不安全的访问方式将关闭上下限检查并且基于指针进行处理。
    1. 需要fixed掉那个数组的指针
 ### 不安全的数组访问和固定大小的数组
 1. 非托管堆可以用`stackalloc`*语句*来分配内存块，使用不安全的指针来进行操控，不能将这个缓冲区的地址传给大部分FCL方法。
@@ -1235,7 +1238,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       1. 一维0基
       2. 仅包含值类型
       3. 值类型中还不能有任何引用类型的字段（怕是它不归GC、移动等管理...废话，指针的值是fixed）
-2. 内联数组：`struct`之中也可以嵌入
+2. 内联数组：`struct`之中也可以嵌入（也就是分配在栈上的数组）
    ```csharp
    internal unsafe struct CharArray{
       public fixed Char Characters[20];
