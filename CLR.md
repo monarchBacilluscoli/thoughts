@@ -1085,11 +1085,11 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 两个*公共只读常量*：最小值和最大值
    2. 存储为一个**16**位的Unicode代码
 2. Char静态：
-   1. Category
-   2. IsXXX
+   1. `Category`
+   2. `IsXXX`
 3. 奇怪，这里又介绍了值类型上调用接口方法会装箱
 ### System.String类型
-1. 神奇了，`String`这种基元类型并不是在栈上，**而是在堆上，是引用类型**，那自然会进行GC。(要不怎么会有留用这种东西)
+1. `String`这种基元类型并不是在栈上，**而是在堆上，是引用类型**，那自然会进行GC。(要不怎么会有留用这种东西)
    1. 但是它基元的体现是，编译器允许在源代码中直接使用字面值字符串
    2. 并且IL代码是`ldstr`，直接吃一个字面值
    3. 但是另一个神奇的点在于，*字符串又是immutable的*！
@@ -1097,6 +1097,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
          1. 操作不改变原字符串...
          2. **线程同步**无需考虑，
          3. **允许字符串合并——留用**，如果不允许，那么就不能进行浅对比，只能进行深对比
+         4. 别的查到的优势：
+            1. 不可变对象更容易构造，测试与使用；
       2. 劣势：
          1. 对于其看似修改的方法产生的都特么是一把一把需要GC的临时值
 2. `@`用于声明非转义的逐字字符串
@@ -1104,11 +1106,11 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 4. *字符串留用*：
    1. 用处：存储时节省内存，比较时节省时间
    2. 哈希表
-      1. key：**字符串**
-      2. value：**托管堆`string`对象的引用**
+      1. `key`：**字符串**
+      2. `value`：**托管堆`string`对象的引用**
    3. 方法：
-      1. Intern
-      2. IsInterned
+      1. `Intern()`
+      2. `IsInterned()`
    4. 字面值字符串默认留用——现在禁用了MB
    5. 用法：
       1. 假设要比较的所有字符串已经留用
@@ -1116,10 +1118,10 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       3. 于是可以用`Object.ReferenceQquals`来比较
    6. 感受：你完全可以实现你自己的字符串留用机制
 5. *字符串池*
-   1. *元数据中只出现一次字面值，其他的都引用它*
+   1. *元数据中只出现一次字面值，其他的都引用它*，避免文件无谓增大
       1. 啥玩意？如何实现的？
 ### 高效率构造字符串
-1. StringBuilder
+1. `StringBuilder`
    1. 原理：内部维持了*Char数组但可变*
    2. 功能：增删改查
 ### 获取对象的字符串表示：ToString()
@@ -1131,7 +1133,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 这里有`UTF8`、`Unicode`和本地代码页方法
    2. 过程是编码成字节数组（`GetBytes()`）、或者从字节数组解码成字符串（`GetString()`）
 2. 字节流的编解码：
-   1. 前面所说的Encoding不记录状态，流传输读了半个字符就很傻
+   1. 前面所说的`Encoding`不记录状态，流传输读了半个字符就很傻
    2. `Encoding.GetDecoder`或者`GetEncoder`
    3. 机制：
       1. 尽可能多解码字符
@@ -1181,7 +1183,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       2. 实例和这些数值一个个进行按位与，如果等于**实例**，则视作存在该数值，附加到字符串，并将该数值位置置0
       3. 如果最后还不为0，则直接输出**原始数值的字符串**
       4. 否则输出组合
-3. `Enum`也可以`Parse`：按逗号分割或者按数字来
+3. `Enum`也可以`Parse()`：按逗号分割或者按数字来
 4. `IsDefined()`时输入一串以逗号分隔的字符串时不行，因为它会视作一个key进行处理
 ### 向枚举类型添加方法
 1. 扩展方法么
@@ -1191,7 +1193,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. Object->Array->XXX
 2. 保存值类型的时候是未装箱内存块
 3. 保存引用类型是引用
-4. 开销信息：
+4. 数组自己有类型对象指针
+5. 开销信息：
    1. 维度
    2. 下限
    3. 长度
@@ -1200,10 +1203,10 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 初始化数组元素
 1. *数组初始化器*
    1. 注意区分值类型初始化器，那个可能要指定变量名的，这个不需要
-2. 初始化可隐藏new之后的类型，会推断出公有类型
+2. 初始化可隐藏`new`之后的类型，会推断出公有类型
    1. 但是值类型和引用类型混合公有类型为`Object`，值类型发生装箱则不被CLR允许，因为成本太高
 ### 数组转型
-1. 引用类型只要有隐式/显式转型符即可转型（*维度一致*）
+1. 引用类型只要有隐式/显式转型符+确实可以转即可转型（*维度一致*）
 2. **值类型不能直接转换和为元素赋值**
    1. **可以用`Array.Copy`**(做了很多事情)
       1. 值->引用 装箱
