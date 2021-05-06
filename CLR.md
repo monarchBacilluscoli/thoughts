@@ -1390,8 +1390,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       3. `HelpLink`
    2. 一些调用信息：
       1. `Source`（哪个程序集出错）
-      2. `StackTrace`
-      3. `TargetSite`（哪个方法出错）
+      2. `TargetSite`（哪个方法出错）
+      3. `StackTrace`从起点到结尾
    3. 一些异常信息：
       1. `InnerException`
       2. `HResult`（COM的异常处理方式，用于跨托管/非托管使用）
@@ -1399,9 +1399,9 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 当`new Exception`的时候为`null`
    2. `throw`的时候CLR记录抛出位置
    3. `catch`的时候CLR记录捕捉位置
-   4. 当`catch`内部块访问`StackTrace`属性的时候，*CLR的记录代码会被调用*，再行创建*异常抛出到捕捉位置*的所有方法
-      1. 这里不包括任何比catch块更高的方法
-         1. 如果需要，可以用`System.Diagnostics.StackTrace`
+   4. 当`catch`内部块访问`StackTrace`属性的时候，*CLR的记录代码会被调用*，再行创建字符串指出*异常抛出到捕捉位置*的所有方法
+      1. 这里*不包括任何比catch块更高的方法*
+         1. 如果需要，可以用`System.Diagnostics.StackTrace`（虽然不知道怎么用）
 3. `throw`带有具名对象会导致CLR重置异常起点
    1. 而Windows无论是是否具名throw都会重置
 4. CLR如果能找到调试符号，那么StackTrace之类的属性将包括*代码行号*（也是，*C#由于有元数据，PDB中就不用存函数名什么的了，内容会少一些。元数据之中没有的，需要存储的恐怕就是跟源代码有关的信息了*）
@@ -1410,8 +1410,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 用可靠性换取开发效率
 1. 如果状态损坏很糟糕，那么就用
    1. `AppDomain.Unload`：`ThreadAbortException`会使得所有`finally`块工作, 404注释
-   2. `Environment.FailFast`：只有继承CriticalFinalizerObject的对象的Finalize等会工作
-2. 使用以下语句将会调用`finally`:
+   2. `Environment.FailFast`：只有继承`CriticalFinalizerObject`的对象的Finalize等会工作
+2. 使用以下语句，编译器将会自动生成`finally`，并把对应的内容放置在finally块中:
    1. `lock`：`finally`会释放锁
    2. `using`：`finally`会调用`Dispoe()`
    3. `foreach`：`finally`会调用IEnumertaor.Dispose
@@ -1421,10 +1421,10 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 有的时候，一旦出现了任何异常，就代表事情没有被合理地完成。此时需要进行回滚并向上通知，这种情形下有两点：
       1. 捕捉所有的异常，进行回滚
       2. 重新抛出被捕捉异常（位置没有变化）
-   2. 另外一种情形，就是作为调用者并不需要也并不应当知道内部实现逻辑，所以需要对异常重新包装：
+   2. 另外一种情形，就是作为调用者*并不需要也并不应当知道内部实现逻辑*，所以需要对异常重新包装：
       1. 捕捉一个对应异常
-      2. 抛出一个更高层级的异常并将先前的异常设为`innerException`（类型和位置都发生了变化）
-   3. 如果仅仅是在异常中添加内容：
+      2. 抛出一个更高层级的异常并将先前的异常*设为`innerException`*（类型和位置都发生了变化）
+   3. 如果仅仅是在异常中*添加内容*：
       1. 捕获异常
       2. 在其`Data`属性中添加数据
 ### 未处理的异常
@@ -1446,7 +1446,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 使用资源
    4. 摧毁状态（实际是本地资源）以进行清理（一般不需要，就是那些`Dispose()`）
    5. 释放内存
-2. `NextObjPtr`在new过程中的变化：
+2. `NextObjPtr`在`new`过程中的变化：
    1. 计算类型所需字节数
    2. 加上overload来分配
    3. 检查是否有足够空间，分配对象，返回地址，`NextObjPtr += size`。
@@ -1474,7 +1474,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 标记所有堆对象*同步索引块*中的一位为0
    3. 检查活动根标记所引用对象为1
    4. 移动所有为1的对象紧靠
-   5. NextObjPtr刷新
+   5. *`NextObjPtr`刷新*
 ### 代：提升性能
 1. 第0代垃圾很多就减少第0代预算
    1. 如果回收了一次发现垃圾很少就会增大第0代
@@ -1491,35 +1491,35 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       2. 每个core仅*负责一部分区域*（空间上分块）
 4. GC两种子模式：
    1. 并发：
-      1. 并发标记不可达对象
+      1. *后台线程* *运行时并发标记* 对象
    2. 非并发：
 #### 使用需要特殊清理的类型
 1. 意义在于，有些资源如果不进行特殊清理会造成内存泄露
 2. 存在Finalize对象会被提升至+1代，在GC后才专门用一个高优先级线程调用`Finalize`方法
 3. `SafeHandle`继承自`CriticalFinalizerObject`
-   1. 会立即编译`Finalize`
+   1. 会立即编译`Finalize()`
    2. 调用非Critical的Finalizer之后才会调用critical的
    3. AppDomain被强行结束时也会调用
-4. SafeHandle用于自动控制包装的本机资源
-5. Dispose用于手动控制本机资源
+4. `SafeHandle`用于自动控制包装的本机资源
+5. `Dispose()`用于手动控制本机资源
 <!-- 6. using可自动于finally中调用Dispose() -->
 7. 有的时候存在*托管对象很小，托管的实际资源很大*：
-   1. `Add/RemoveMemoryPressure`（添加实际内存压力）
-   2. `HandleCollector.Add`（对该对象初始化最大计数（比如某些资源的使用会有限制），和添加计数）
+   1. `Add/RemoveMemoryPressure()`（添加实际内存压力）
+   2. `HandleCollector.Add()`（对该对象初始化最大计数（比如某些资源的使用会有限制），和添加计数）
 #### Finalize的内部工作原理
-1. 含Finalize的在*构造器被调用之前就会放在**终结列表**中*
-2. 如果不可达，*回收之后会被放在freachable队列中*
+1. 含`Finalize()`的在*构造器被调用之前就会放在**终结列表**中*（单独用一个列表方便查找）
+2. 如果不可达，*回收之后会被放在**freachable队列**中*
    1. 并被*提升至更高级别*
 3. *高优先级线*程专门调用这些对象的Finalize方法并移除之
 4. 下一次清理高级垃圾的时候，所有的根都不引用这些托管垃圾了，他们就可以被安全清除。
 
-5. GCHandle，允许应用程序监视和控制对象的生存期。使用的时候传入对象和监视标志
+5. `GCHandle`，允许应用程序监视和控制对象的生存期。使用的时候传入对象和监视标志
    1. 四个标志：
       1. `weak`
       2. `weakTrackResurrection`
       3. `Normal`：必须要留存在内存中
       4. `Pinned`：留存+位置固定
-6. fixed会让CSC在对象局部变量上生成“已固定”标记，比采用代理进行非托管代码交换的形式效率要高一些
+6. `fixed`会让CSC在对象局部变量上生成“已固定”标记，比采用代理进行非托管代码交换的形式效率要高一些
 
 ## CLR寄宿和AppDomain
 1. 垫片与最新版本的的CLR相同。负责启动CLR服务器
