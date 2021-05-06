@@ -1193,13 +1193,14 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. Object->Array->XXX
 2. 保存值类型的时候是未装箱内存块
 3. 保存引用类型是引用
-4. 数组自己有类型对象指针
-5. 开销信息：
-   1. 维度
-   2. 下限
-   3. 长度
-   4. 元素类型
-      1. 用于处理数组的**协变性**（例如`String[] sa`可以赋值给`Object[] oa`，但是此后这个oa每次被赋值的时候都会check是否元素是`String`）
+4. 数组自己有
+   1. 类型对象指针
+   2. 开销信息：
+      1. 维度
+      2. 下限
+      3. 长度
+      4. **元素类型**
+         1. 用于处理数组的**协变性**（例如`String[] sa`可以赋值给`Object[] oa`，但是此后这个`oa`**每次被赋值的时候都会check是否元素是`String`**）
 ### 初始化数组元素
 1. *数组初始化器*
    1. 注意区分值类型初始化器，那个可能要指定变量名的，这个不需要
@@ -1208,30 +1209,30 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 数组转型
 1. 引用类型只要有隐式/显式转型符+确实可以转即可转型（*维度一致*）
 2. **值类型不能直接转换和为元素赋值**
-   1. **可以用`Array.Copy`**(做了很多事情)
-      1. 值->引用 装箱
+   1. **可以用`Array.Copy`**，这个为了支持**必要的类型转换**，做了很多事情：
+      1. 值->引用（`int[]->Object[]`） 装箱
       2. 反过来拆箱
       3. 加宽类型
 ### 所有数组都隐式派生自System.Array
 1. 所以`String[]`不能被看作仅仅是像C一样一段存储了连续`String`变量的内存，而是也是一个类型。
 2. 继承关系如：`Object->Array->Object[]->String[]`注意有一个迂回
 4. `Array`提供了`Clone`、`CopyTo`、`Length`等等
-### 所有数组都隐式实现IEnumerable、ICollection和IList
+### 所有数组都隐式实现`IEnumerable`、`ICollection`和`IList`
 1. 一维数组会实现泛型版本
    1. 会在“CLR创建这个类型的时候”，为数组存储的这个类型及其基类实现这些接口
    2. 于是允许了该数组在任何需要IE、IC、IL的时候可用
-   3. 但是如果数组包含的是值类型元素则只会实现该类型接口，**而不会实现ValueType和Object的接口**（因为值类型和引用类型内存布局不同）
-2. IList是随机访问接口、IEnumerable是foreach接口、ICollection是增删接口
+   3. 但是如果数组包含的是值类型元素则只会实现该类型接口，(因为它的基类型都是引用类型)**而不会实现ValueType和Object的接口**（因为值类型和引用类型内存布局不同）
+2. `IList`是随机访问接口、`IEnumerable`是`foreach`接口、`ICollection`是增删接口
 ### 数组的传递和返回
 1. 数组参数传递时传递的是引用
-   1. 如果不想修改数组最好进行Copy
-   2. 但是Copy也是浅拷贝
+   1. 如果不想修改数组最好进行`Copy`
+   2. 但是`Copy`也是浅拷贝
 ### 数组的内部工作原理
-1. 0基数组有不需要减去偏移的特殊IL指令例如stelem、ldelem等
+1. 0基数组有不需要减去偏移的特殊IL指令例如`stelem`、`ldelem`等
 2. 0基数组循环的时候只进行一次下限和上限(也只检查一次！)检查
-3. 非0基数组和多维数组都要将check从循环中拿出来
+3. 非0基数组和多维数组都要将bundary check从循环中拿出来
 4. 不安全的访问方式将关闭上下限检查并且基于指针进行处理。
-   1. 需要fixed掉那个数组的指针
+   1. 需要`fixed`掉那个数组的指针
 ### 不安全的数组访问和固定大小的数组
 1. 非托管堆可以用`stackalloc`*语句*来分配内存块，使用不安全的指针来进行操控，不能将这个缓冲区的地址传给大部分FCL方法。
    ```csharp
@@ -1248,7 +1249,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    }
    ```
    1. 要求：
-      1. 数组fixed，一维0基
+      1. 数组`fixed`，一维0基
       2. 仅包含基元类型中的一部分值类型
 
 ## 委托
@@ -1259,7 +1260,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 用委托回调实例方法
 
 ### 委托揭秘
-1. 注意委托也是要new的，毕竟也是一个类型的实例
+1. 注意委托也是要`new`的，毕竟也是一个类型的实例
 2. 编译器自动将委托的声明定义为一个类型
    1. 继承关系`Object->Delegate->MulticastDelegate`
    2. 与委托实现有关的重要成员：
@@ -1273,7 +1274,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
          3. `BeginInvoke()`和`EndInvoke()`
    3. 静态方法：`Combine()`也就是`+=`，`Remove()`（对比的是_target和_methodPtr和传入参数是否一致）和`Invoke()`
 ### 用委托回调多个方法（委托链）
-1. 建立委托链的中间过程会产生很多临时对象（可简单将委托视为immutable的（但是，特么这个和String一样都是引用类型）），那些对象都会被GC
+1. 建立委托链的中间过程会产生很多临时对象（可简单将委托视为immutable的（这个和`String`一样都是不可变的引用类型）），那些对象都会被GC
 2. 调用委托链的时候会依序调用
 3. 委托被调用只有最后一个结果可以保存
 4. 可以通过`GetInvocationList()`来返回一个Invocation的列表从而自行进行调用控制
@@ -1379,8 +1380,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 异常处理机制
 1. 过程：
    1. `catch`搜索会从栈顶到栈底进行搜索
-   2. 当搜索到结果时*内层的`finally`块都会被执行*
-   3. 执行`catch`成功后，它再执行同级别的`finally`块
+   2. 当搜索到结果时**内层的`finally`块都会被执行**
+   3. 执行`catch`，成功后，它**再执行同级别的`finally`块**
    4. 然后执行`finally`块之后的语句
 2. `finally`块是保证会执行的代码——并且在这里线程不会停止
 3. 如果`catch`和`finally`块发生异常，那么CLR的异常处理机制仍然执行，就好像从finally块之后的语句抛出的一样
@@ -1400,8 +1401,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       2. `HResult`（COM的异常处理方式，用于跨托管/非托管使用）
 2. `StackTrace`属性
    1. 当`new Exception`的时候为`null`
-   2. `throw`的时候CLR记录抛出位置
-   3. `catch`的时候CLR记录捕捉位置
+   2. `throw`的时候CLR**记录**抛出位置
+   3. `catch`的时候CLR**记录**捕捉位置
    4. 当`catch`内部块访问`StackTrace`属性的时候，*CLR的记录代码会被调用*，再行创建字符串指出*异常抛出到捕捉位置*的所有方法
       1. 这里*不包括任何比catch块更高的方法*
          1. 如果需要，可以用`System.Diagnostics.StackTrace`（虽然不知道怎么用）
@@ -1530,6 +1531,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 类型对象不会由AppDomain共享
       1. 但是有些是AppDomain中立的类型，比如MsCorLib.dll，这些为一个进程所有AppDomain所共用
 1. 按值封送和*按引用封送*要搞一搞
+   
 ## 程序集加载和反射
 1. 程序集在加载的时候CLR即是用`Assembly.Load`来加载程序集，传入的是程序的完整名称的字符串
 2. LoadFrom(path)只负责从path中获取程序集全名，然后用全名调用Load，但Load会从GAC-根目录等位置开始查找，所以找到的并不一定是自己想加载的
