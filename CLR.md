@@ -1453,15 +1453,15 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 2. `NextObjPtr`在`new`过程中的变化：
    1. 计算类型所需字节数
    2. 加上overload来分配
-   3. 检查是否有足够空间，分配对象，返回地址，`NextObjPtr += size`。
-   4. 调用构造器初始化
+   3. 检查是否有足够空间，分配对象，调用构造器初始化
+   4. 返回地址，`NextObjPtr += size`。
    这里暗示了托管堆的理想情况也是*线性扩展*
 3. 发生垃圾回收的时间：
    1. new操作符发现第0代不够
       1. 如果只有0代超出，那只GC 0代
-      2. 如果*因为0代刚分配完导致1代超出那么本次不会进行1代GC*，会顺延到下次
+      2. 如果*因为0代刚GC完导致1代超出那么本次不会进行1代GC*，会顺延到下次
       3. 如果没有回收到足够的内存，就会执行完整回收
-   2. 显式调用`Collect`（回收2代）
+   2. 显式调用`Collect()`（回收2代）
    3. *Windows报告（系统总体）低内存*（大收紧，回收2代）
    4. CLR正在*卸载AppDomain*（小关闭）
    5. *CLR正在关闭*（大关闭）
@@ -1499,12 +1499,14 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 非并发：
 #### 使用需要特殊清理的类型
 1. 意义在于，有些资源如果不进行特殊清理会造成内存泄露
-2. 存在Finalize对象会被提升至+1代，在GC后才专门用一个高优先级线程调用`Finalize`方法
+2. 存在Finalize对象会被提升至+1代，在GC后才专门用一个**高优先级线程**调用`Finalize()`方法
 3. `SafeHandle`继承自`CriticalFinalizerObject`
    1. 会立即编译`Finalize()`
-   2. 调用非Critical的Finalizer之后才会调用critical的
+   2. 调用非`CriticalFinalizerObject`的`Finalize()`之后才会调用`CriticalFinalizerObject`的
    3. AppDomain被强行结束时也会调用
 4. `SafeHandle`用于自动控制包装的本机资源
+   1. 比如在`owner`为`false`的时候，调用`Dispose()`的时候，`Finalize()`的时候等等这几个出口资源都会被释放
+   2. 还有一些辅助方法`IsValide()`, `IsClosed()`用于查看资源是否可用
 5. `Dispose()`用于手动控制本机资源
 <!-- 6. using可自动于finally中调用Dispose() -->
 7. 有的时候存在*托管对象很小，托管的实际资源很大*：
@@ -1517,10 +1519,10 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 3. *高优先级线*程专门调用这些对象的Finalize方法并移除之
 4. 下一次清理高级垃圾的时候，所有的根都不引用这些托管垃圾了，他们就可以被安全清除。
 
-5. `GCHandle`，允许应用程序监视和控制对象的生存期。使用的时候传入对象和监视标志
+5. `GCHandle`，允许应用程序监视和控制对象的生存期。使用的时候传入对象和监视标志（注意和`GCHandle`区分）
    1. 四个标志：
-      1. `weak`
-      2. `weakTrackResurrection`
+      1. `weak`，什么时候进到F-reachable队列
+      2. `weakTrackResurrection`，什么时候已经从F-reachable出列
       3. `Normal`：必须要留存在内存中
       4. `Pinned`：留存+位置固定
 6. `fixed`会让CSC在对象局部变量上生成“已固定”标记，比采用代理进行非托管代码交换的形式效率要高一些
@@ -1533,8 +1535,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. 按值封送和*按引用封送*要搞一搞
    
 ## 程序集加载和反射
-1. 程序集在加载的时候CLR即是用`Assembly.Load`来加载程序集，传入的是程序的完整名称的字符串
-2. LoadFrom(path)只负责从path中获取程序集全名，然后用全名调用Load，但Load会从GAC-根目录等位置开始查找，所以找到的并不一定是自己想加载的
+1. 程序集在加载的时候CLR即是用`Assembly.Load()`来加载程序集，传入的是程序的完整名称的字符串
+2. `LoadFrom(path)`只负责从`path`中获取程序集全名，然后用全名调用`Load`，但`Load`会从GAC-根目录等位置开始查找，所以找到的并不一定是自己想加载的
 3. 不执行构建但是加载的方式是`ReflectionOnlyLoad()`
    1. 此时程序仅加载到反射上下文，而不加载到执行上下文
    2. 亦即可以用`GetType()`等来分析程序集，但不能执行任何代码
@@ -1548,7 +1550,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    所以更推荐使用类型及接口
 6. Type和TypeInfo的区别
    1. `Type`是`TypeInfo`的轻量级引用
-7. 执行反射获取的方法时，无非就是`Invoke`，然后传入`Object`（实例方法）以及参数
+7. 执行反射获取的方法时，无非就是`Invoke()`，然后传入`Object`（实例方法）以及参数
 
 ## 序列化与反序列化
 1. 调用序列化器进行序列化反序列化的形式如下:
@@ -1560,11 +1562,12 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    这里没有显式提供任何对象有关的信息，这些信息是由序列化器通过**反射**get到的
 2. 如果序列化多个对象，反序列化也需要按照序列化时的顺序进行
 3. 机制：
-   1. 序列化时*类型和程序集的强命名*会被写入流，然后反射得到可序列化的`MemberInfo[]`
-   2. 反序列化时*先加载程序集和类型*
-   3. 然后*创建类型Uninitialized实例*，并以流中的数据来初始化该实例
+   1. 序列化时*类型和程序集的强命名*会被写入流
+   2. 反射得到可序列化的`MemberInfo[]`
+   3. 反序列化时*先加载程序集和类型*
+   4. 然后*创建类型Uninitialized实例*，并以流中的数据来初始化该实例
 4. 如果需要序列化的对象并非都可以序列化，则会在序列化*期间*抛出异常
-   1. 在期间抛出异常的原因是，考虑到性能，序列化前CLR不会验证所有的字段、对象都可以序列化
+   1. 在期间抛出异常的原因是，考虑到*性能*，序列化前CLR不会验证所有的字段、对象都可以序列化
    2. 于是乎关乎异常处理，可能需要重置流状态
 5. 可以应用在
    1. 值类型
@@ -1574,25 +1577,25 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 6. `Serializable`不会继承
 ### 控制序列化和反序列化
 1. `NonSerialized`显式标记某些字段字段不要
-3. `OnSerializing`-`OnSerialized`是被序列化对象在序列化前后调用的
+2. `OnSerializing`-`OnSerialized`序列化前后
    1. 前者用于序列化前准备（欺骗序列化hhh）
    2. 后者用于序列化后恢复之前的准备
-4. `OnDeserializing`-`OnDeserialized`
+3. `OnDeserializing`-`OnDeserialized`反序列化前后
    1. 前者用于反序列化前设置默认值
    2. 后者用于反序列化之后重建待计算值——例如以半径计算面积。和NonSerialized可以协同使用
-5. `OptionalField`用于设定某些字段在流中可以有可以没有，没有的话可以不要。我估计这个和OnDeserializing可以一起用
+4. `OptionalField`用于设定某些字段在流中可以有可以没有，没有的话可以不要。我估计这个和OnDeserializing可以一起用
 ### 格式化器如何序列化类型实例
 1. 流程：
    1. `FormatterServerice`反射获取`MemberInfo[]`
    2. `GetObjectData()`传入`MemberInfo[]`获取所有字段的值`Object[]`，这个玩意和前者是一一对应的
-   3. 格式化器将程序集标识和类型完整名称写入流
-   4. 依次将两个数组的名字-数据写入流中
+   3. 格式化器将程序集标识和*类型完整名称*写入流
+   4. 依次将两个数组的名称-值写入流中
 2. 反序列化流程：
    1. 将程序集和类型加载到AppDomain
-   2. 使用反射调用`GetUninitializedObject()`来分配一个对象的内存但不调用构造器
-   3. 使用反射获取MemberInfo[]
-   4. 格式化器获取Object[]
-   5. PopulateObjectMembers()填充对象
+   2. 使用反射通过`GetTypeFromAssembly(assem, typeName)`调用`GetUninitializedObject()`来分配对象的内存但不调用构造器
+   3. 使用反射获取`MemberInfo[]`
+   4. 格式化器获取`Object[]`
+   5. `PopulateObjectMembers()`填充对象
 ### 控制序列化/反序列化数据
 1. 就是自己实现`ISerializable`接口
    1. 目的：
@@ -1602,12 +1605,12 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 优先级大于`Serializable`特性
 2. 要求：
    1. 派生类也必须实现
-   2. 必须在构造的时候先调用基类的GetObjectData()
+   2. 必须在构造的时候先调用基类的`GetObjectData()`
 3. 组成部分：
-   1. 一个构造器用于反序列化时构造对象，或者只存储SerializationInfo用别的函数来初始化他们（比如需要重建哈希表的时候）
+   1. 一个构造器用于反序列化时构造对象，或者只存储`SerializationInfo`用别的函数来初始化他们（比如需要重建哈希表的时候）
       1. 在其中可以调用info的各种GetValue方法
-   2. 一个GetObjectData(SerializationInfo info, StreamingContext context)
-   3. IDeserializationCallback.OnDeserialization(Object sender)
+   2. 一个GetObjectData(SerializationInfo info, StreamingContext context), 用于序列化写入流
+   3. IDeserializationCallback.OnDeserialization(Object sender), 所有key/value对象都反序列好之后用于重建
 ### 流上下文
 1. 表示序列化的数据来源和去向的类型（同一机器？进程？还是别的）
 2. 可以在序列化器的`Serialize()`和`Deserialize()`中传入
@@ -1637,3 +1640,14 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 5. 事件和委托之间的差别
    1. 委托是类型，事件是包装了对应委托类型的对象
    2. 事件包装了对应类型的委托：添加了`add`，`remove`的机制，同时取消了外部对于委托的触发权限等。
+
+6. 枚举类型的直接基类是什么，
+7. `Attribute`可以用什么作为参数，为什么？
+8. `int[,] matrix`可否转换为`IList<int>`
+   1. 没有，而是实现了`IList`
+   2. 那么数组隐式实现了什么？
+9. `invocationList`是什么类型？
+   1.  `Object`
+10. finally都在哪个地方被隐式使用？
+    1.  `Finalize()`，try本级，finally上级
+    2.  
