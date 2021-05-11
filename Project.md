@@ -177,7 +177,14 @@
       2. 利用底层接口支持（需要查看doc）
     1. 和第二阶段目标相关：
       3. 这次目的恐怕并非是练手，而是上线，这里时间也并不充裕，需要一个比较耐得住颠扑的基础设施
-    
+### double二次开发新特性技术参考
+1. 道具
+* we'd have a **GameObject** reference where the *attachment point* can be assigned in the inspector, a **SyncVar enum** with various choices of *what the player is holding*, and and a **Hook** for the SyncVar to *swap out the art of the held item* based on the new value.
+* 由于这里不提供调节子物体相对位置的方案，所以可以 having the grip or handle of an item align with the hand, 从而根据这个来调节子物体的相对位置
+* Remember that, as child art, the item prefabs *have no networking components* on them at all.
+  * 用于处理掉落逻辑的时候，貌似需要特别处理
+  * 即需要另一个和玩家切枪一样逻辑的item container，这个container也可以像玩家一样接受一个enum然后切换实际包含的道具
+
 2. 问题：
   1. **确认该框架可以用于商业游戏开发**
 #### Git的开发模式

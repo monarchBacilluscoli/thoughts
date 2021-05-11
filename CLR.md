@@ -1528,14 +1528,55 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 6. `fixed`会让CSC在对象局部变量上生成“已固定”标记，比采用代理进行非托管代码交换的形式效率要高一些
 
 ## CLR寄宿和AppDomain
-1. 垫片与最新版本的的CLR相同。负责启动CLR服务器
+### CLR寄宿
+1. 能够“使任何应用程序都能利用CLR的功能...使*现有的应用程序*至少能部分使用托管代码编写...提供了通过编程来进行自定义和扩展的能力”——But, how?
+   1. 任何windows应用程序都能寄宿CLR是基础，就是可以启动CLR服务，启动由MSCorEE.dll（垫片）中的`CLRCreateInstance()`负责
+   2. 然后就可以通过GetRuntime得到ICLRRuntimeInfo指针来获得ICLRRuntimeHost来设置宿主管理器、获取CLR管理器、启动CLR、加载程序集并运行等等事务。
+2. 什么是COM服务器？
+3. CLR不能卸载，但是AppDomain可以，但程序集又不能卸载hhh
+### AppDomain
+1. 有四个具体功能：
+   1. 隔离
+   2. 卸载
+   3. 权限保护
+   4. 配置
+#### 跨越AppDomain边界访问对象
+1. 按引用封送：
+   1. 用法：`(MarshalByRefType)AppDomain.CreateInstanceAndUnwrap(程序集实例, "类型名")`
+   2. 条件：按引用封送的类型需要继承`System.MarshalByRefObject`，只要发现是这个的派生，就会按引用封送
+   3. 机制：
+      1. CLR在目标AppDomain中定义一个代理类型（使用原始数据类型定义）
+         1. 属性、事件和方法（*动词成员*）一致
+         2. 实例字段（*名词成员*）不一致，仅包含哪个AppDomain中包含、如何在这个AppDomain中找到这个真实对象
+      2. 调用其中方法的时候，执行线程将切换到真实AppDomain并执行其方法（同步执行）
+   4. 注意：
+      1. *不要用静态成员*，很简单，因为静态成员没有代理**对象**
+      2. *真实对象由于在真实AppDomain中没有根所以会被GC*，CLR使用的是**lease manager**：
+         1. 从创建开始5分钟没有使用，或从上次调用开始2分钟没有使用，就会被GC（可自定义）
+2. 按值封送
+   1. 条件：`[Serializable]`
+3. 不可封送：
+   1. 异常：`SerializationException`
+5. Windows对AppDomain一无所知
+#### 卸载AppDomain
+1. 过程：
+   1. 挂起所有线程
+   2. 如果有线程正在或将要执行AppDoamin中代码，则直接抛出TreadAbortException并恢复运行，线程展开+finally
+   3. CLR遍历堆，标记对象为不存在
+   4. 垃圾回收
+   5. 恢复线程执行
+2. 注意：CLR会吞噬未经处理的`ThreadAbortException`，这里进程并未终止
+
+3. 垫片与最新版本的的CLR相同。负责CLR服务器启动工作，帮你从一般Windows应用程序打开CLR
    1. 然后CLR启动对应的AppDomain
-   2. 类型对象不会由AppDomain共享
-      1. 但是有些是AppDomain中立的类型，比如MsCorLib.dll，这些为一个进程所有AppDomain所共用
-1. 按值封送和*按引用封送*要搞一搞
-   
+   2. *类型对象不会由AppDomain共享*，JIT生成的本机代码也一样
+      1. 但是有些是AppDomain中立的类型，比如MsCorLib.dll，它包含了Object、Int32这些类型，这些为一个进程所有AppDomain所共用
+
+
 ## 程序集加载和反射
-1. 程序集在加载的时候CLR即是用`Assembly.Load()`来加载程序集，传入的是程序的完整名称的字符串
+1. 程序集在加载的时候
+   1. 根据TypeRef->AssemblyRef来得到程序集的强命名，然后合并成字符串
+   2. CLR即是用`Assembly.Load()`来加载程序集，传入的是程序的完整名称的字符串
 2. `LoadFrom(path)`只负责从`path`中获取程序集全名，然后用全名调用`Load`，但`Load`会从GAC-根目录等位置开始查找，所以找到的并不一定是自己想加载的
 3. 不执行构建但是加载的方式是`ReflectionOnlyLoad()`
    1. 此时程序仅加载到反射上下文，而不加载到执行上下文
@@ -1545,8 +1586,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 序列化——需要知道类型定义了什么内容
    2. 根据强命名加载程序集
 5. 反射的问题：
-   1. 依赖字符串，于是无法在编译期进行检查
-   2. 依赖字符串对比，效率低
+   1. 依赖字符串，于是*无法在编译期进行检查*
+   2. 依赖字符串对比，*效率低*
    所以更推荐使用类型及接口
 6. Type和TypeInfo的区别
    1. `Type`是`TypeInfo`的轻量级引用
@@ -1642,12 +1683,25 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 事件包装了对应类型的委托：添加了`add`，`remove`的机制，同时取消了外部对于委托的触发权限等。
 
 6. 枚举类型的直接基类是什么，
+   * `System.Enum`
 7. `Attribute`可以用什么作为参数，为什么？
-8. `int[,] matrix`可否转换为`IList<int>`
-   1. 没有，而是实现了`IList`
-   2. 那么数组隐式实现了什么？
-9. `invocationList`是什么类型？
-   1.  `Object`
-10. finally都在哪个地方被隐式使用？
-    1.  `Finalize()`，try本级，finally上级
-    2.  
+   * 特定的attribute parameter types：
+     * `bool`、`byte`等基本类型
+     * `object`
+     * `System.Type`
+     * `enum`
+     * 以上类型的一维数组
+8. `Attribute`的定位参数和命名参数如何定义
+   * 定位参数：构造器；命名参数：property
+9.  `int[,] matrix`可否转换为`IList<int>`
+   * 没有，只是实现了非泛型`IList`
+   * 那么数组隐式实现了什么？
+      1. `IEnuemrable`、`ICollection`和`IList`
+      2. 创建一维零基数组类型时才会实现泛型`IEnumerable<T>`、`ICollection<T>`和`IList<T>`
+10. `invocationList`是什么类型？
+   *  `object`
+11. finally都在哪个地方被隐式使用？
+    *  `Finalize()`，`finally`块中调用基类的析构器
+    *  `lock`语句时锁在`finally`块中释放
+    *  `using`语句，`finally`中调用`Dispose()`
+    *  `foreach`语句，`finally`中调用`IEnumerator`的`Dispose()`
