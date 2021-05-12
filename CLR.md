@@ -1584,14 +1584,27 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    3. 此外该方法必须向`ReflectionOnlyAssemblyResolve`事件注册处理依赖的方法
 4. 应用程序使用反射的情况之二
    1. 序列化——需要知道类型定义了什么内容
-   2. 根据强命名加载程序集
+   2. 根据强命名加载程序集 
 5. 反射的问题：
    1. 依赖字符串，于是*无法在编译期进行检查*
    2. 依赖字符串对比，*效率低*
+   3. 调用方法时需要对参数进行*打包到数组和解包*
    所以更推荐使用类型及接口
 6. Type和TypeInfo的区别
    1. `Type`是`TypeInfo`的轻量级引用
 7. 执行反射获取的方法时，无非就是`Invoke()`，然后传入`Object`（实例方法）以及参数
+### 使用反射发现类型的成员
+1. 实际上反射有两种用法：
+   1. 动态可扩展应用程序，它符合你已经定义好了的一些基类和接口，所以你加载它并构造好对象以后，需要将对象转型为这些
+   2. 发现并调用类型成员，它里面定义了什么你并不知道，只是遍历并调用之：
+      1. `FieldInfo`, `PropertyInfo`
+         1. `GetValue`
+         2. `SetValue`
+      3. `ConstructorInfo`, `MethodInfo`
+         1. `Invoke`
+      5. `EventInfo`
+         1. `AddEventHandler`
+         2. `RemoveHandler`
 
 ## 序列化与反序列化
 1. 调用序列化器进行序列化反序列化的形式如下:
@@ -1628,8 +1641,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 格式化器如何序列化类型实例
 1. 流程：
    1. `FormatterServerice`反射获取`MemberInfo[]`
-   2. `GetObjectData()`传入`MemberInfo[]`获取所有字段的值`Object[]`，这个玩意和前者是一一对应的
-   3. 格式化器将程序集标识和*类型完整名称*写入流
+   2. `GetObjectData()`传入`MemberInfo[]`获取所有字段的值`Object[]`，它和前者是一一对应的
+   3. 格式化器将*程序集标识*和*类型完整名称*写入流
    4. 依次将两个数组的名称-值写入流中
 2. 反序列化流程：
    1. 将程序集和类型加载到AppDomain
@@ -1650,8 +1663,8 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 3. 组成部分：
    1. 一个构造器用于反序列化时构造对象，或者只存储`SerializationInfo`用别的函数来初始化他们（比如需要重建哈希表的时候）
       1. 在其中可以调用info的各种GetValue方法
-   2. 一个GetObjectData(SerializationInfo info, StreamingContext context), 用于序列化写入流
-   3. IDeserializationCallback.OnDeserialization(Object sender), 所有key/value对象都反序列好之后用于重建
+   2. 一个`GetObjectData(SerializationInfo info, StreamingContext context)`, 用于序列化写入流
+   3. 可以加上`IDeserializationCallback.OnDeserialization(Object sender)`, 所有key/value对象都反序列好之后用于重建
 ### 流上下文
 1. 表示序列化的数据来源和去向的类型（同一机器？进程？还是别的）
 2. 可以在序列化器的`Serialize()`和`Deserialize()`中传入
