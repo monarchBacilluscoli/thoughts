@@ -66,7 +66,9 @@
 9. 两个Quaternion直接相乘是先用lhs后用rhs
 10. `Quaternion.AngleAxis()`的意思是围绕某个Axis旋转多少度，而不是在这个方向上添加扰动旋转
 11. OnLocalPlayerStart()只会在Client是Owner的时候调用一次，所以公有的挂载不要在这里写，而是在Awake或者Start中写。
-    1.  此外，如果挂载的物品在RPC调用的时候为null，则null的客户端直接挂掉。
+    1.  此外，如果挂载的物品在RPC调用的时候为null，则null的客户端直接挂掉
+12. 关于SO null ref的问题，这个可能会有帮助：https://forum.unity.com/threads/my-scriptableobject-references-are-becoming-null-in-the-build.464206/
+    1.  此外还有一篇关于Serialization的：https://blogs.unity3d.com/2012/10/25/unity-serialization/?_ga=2.244697421.998148984.1621437408-829177975.1618757098
 
 ## 关于Mirror
 1. 设置玩家
