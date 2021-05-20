@@ -81,6 +81,10 @@
         1.  Unity无法序列化`readonly`字段 https://docs.unity3d.com/Manual/script-Serialization.html
 15. 所有的assets都可以用编辑器打开查看其中是否真正被序列化了东西。
 16. 实际上自定义的类型是可以被显示在Inspector之中的
+    1.  此外，如果挂载的物品在RPC调用的时候为null，则null的客户端直接挂掉
+12. 关于SO null ref的问题，这个可能会有帮助：https://forum.unity.com/threads/my-scriptableobject-references-are-becoming-null-in-the-build.464206/
+    1.  此外还有一篇关于Serialization的：https://blogs.unity3d.com/2012/10/25/unity-serialization/?_ga=2.244697421.998148984.1621437408-829177975.1618757098
+    2.  对，没错，问题就是因为名称不匹配
 
 ## 关于Mirror
 1. 设置玩家
