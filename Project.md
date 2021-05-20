@@ -69,6 +69,18 @@
     1.  此外，如果挂载的物品在RPC调用的时候为null，则null的客户端直接挂掉。
 12. 粘墙bug：如果在空中时有向墙体冲的速度，那么人将吸在墙上不掉下来
     1.  妈的是物理材质的问题，默认的物理材质有**0.4**的摩擦系数
+13. ScriptableObject作为了Buff的基类，希望在不继承MB的情况下可以图形化配置。但其中包含两类数据：
+    1.  永久化数据：EffectTime
+    2.  当前数据：CurrentTime
+    3.  这样导致了问题：currentTime为一大于0的值，在构造函数中重置也没有用，并且将之Serialize显示出来后表明不仅在Runtime，在asset中也确实显示为该值。表明改值被序列化到asset中了
+    4.  似乎`ScriptableObject`中的所有字段即使不加`SerializedField`也会被序列化
+        1.  是的
+14. 使用SO作为配置文件并拖放到脚本某字段时，在Editor中没有什么问题，但是Build时该字段变成了null，并有Serialization读取到比较少的数据的提示，并且四个config都少了12byte。
+    1.  最终发现是SO中有`readonly`字段，导致这一问题。
+    2.  原因：
+        1.  Unity无法序列化`readonly`字段 https://docs.unity3d.com/Manual/script-Serialization.html
+15. 所有的assets都可以用编辑器打开查看其中是否真正被序列化了东西。
+16. 实际上自定义的类型是可以被显示在Inspector之中的
 
 ## 关于Mirror
 1. 设置玩家
