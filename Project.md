@@ -47,8 +47,6 @@
 - Unity
   - [ ] 重新捋一眼Manual（DR）
 
-
-
 ## 关于Debug
 1. UI控件无法交互
    1. 可能是`EventSystem`没有挂
@@ -85,6 +83,12 @@
 12. 关于SO null ref的问题，这个可能会有帮助：https://forum.unity.com/threads/my-scriptableobject-references-are-becoming-null-in-the-build.464206/
     1.  此外还有一篇关于Serialization的：https://blogs.unity3d.com/2012/10/25/unity-serialization/?_ga=2.244697421.998148984.1621437408-829177975.1618757098
     2.  对，没错，问题就是因为名称不匹配
+13. 现象：`UpperBody`和`LowerBody`上对应的Mask后走路胳膊摆大字，没法让UpperBody在非Aim或者Shooting状态时跟随当前动画的手臂姿态。
+    1.  原因很简单：LowerBody不能不勾胳膊，逻辑应该是LowerBody勾胳膊，但在Aiming或Shooting的时候用Upperbody的姿势覆盖原先姿势
+14. 只有在SubStateMachine其中的状态有进入Exit的Transition时候，整个状态机才可能在不同的substatemachine之间转换
+15. `LookRotation()`使用时请注意，以第一个forward为准，如果forward和up有冲突，则up完全没得效果，所以记得把forward的方向在up的plane上project一下
+16. 网络开发的时候有一个模式，为了处理这类问题：
+    1.  玩家进入一个网络物体的碰撞体，捡取了该物体——然后向服务器发送摧毁该物体的请求——服务器摧毁了但客户端还没摧毁——客户端再次发生碰撞——捡取/摧毁了两次
 
 ## 关于Mirror
 1. 设置玩家

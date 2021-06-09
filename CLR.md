@@ -1457,7 +1457,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    4. 返回地址，`NextObjPtr += size`。
    这里暗示了托管堆的理想情况也是*线性扩展*
 3. 发生垃圾回收的时间：
-   1. new操作符发现第0代不够
+   1. new操作符发现第0代不够（小收紧）
       1. 如果只有0代超出，那只GC 0代
       2. 如果*因为0代刚GC完导致1代超出那么本次不会进行1代GC*，会顺延到下次
       3. 如果没有回收到足够的内存，就会执行完整回收
@@ -1480,7 +1480,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    4. 移动所有为1的对象紧靠
    5. *`NextObjPtr`刷新*
 ### 代：提升性能
-1. 第0代垃圾很多就减少第0代预算
+1. 自适应：第0代垃圾很多就减少第0代预算
    1. 如果回收了一次发现垃圾很少就会增大第0代
    2. 如果没有回收到足够的内存，就会执行完整回收
 2. `>85000`字节的对象是大对象（移动起来昂贵（1，2），一般寿命长（3））
@@ -1500,7 +1500,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 #### 使用需要特殊清理的类型
 1. 意义在于，有些资源如果不进行特殊清理会造成内存泄露
 2. 存在Finalize对象会被提升至+1代，在GC后才专门用一个**高优先级线程**调用`Finalize()`方法
-3. `SafeHandle`继承自`CriticalFinalizerObject`
+3. 一般不建议重写`Finalize()`，而建议继承`SafeHandle`。`SafeHandle`继承自`CriticalFinalizerObject`，其优势是（目的是保证执行`Finalize()`成功）：
    1. 会立即编译`Finalize()`
    2. 调用非`CriticalFinalizerObject`的`Finalize()`之后才会调用`CriticalFinalizerObject`的
    3. AppDomain被强行结束时也会调用
@@ -1540,6 +1540,9 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 卸载
    3. 权限保护
    4. 配置
+2. 不共享的对象：
+   1. 类型对象
+   2. IL代码
 #### 跨越AppDomain边界访问对象
 1. 按引用封送：
    1. 用法：`(MarshalByRefType)AppDomain.CreateInstanceAndUnwrap(程序集实例, "类型名")`
@@ -1551,7 +1554,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
       2. 调用其中方法的时候，执行线程将切换到真实AppDomain并执行其方法（同步执行）
    4. 注意：
       1. *不要用静态成员*，很简单，因为静态成员没有代理**对象**
-      2. *真实对象由于在真实AppDomain中没有根所以会被GC*，CLR使用的是**lease manager**：
+      2. *真实对象由于在真实AppDomain中没有根（因为真实对象直接被使用AppDomain调用CreateInstanceAndUnwrap在真实AppDomain中生成并直接返回了）所以会被GC*，CLR使用的是**lease manager**：
          1. 从创建开始5分钟没有使用，或从上次调用开始2分钟没有使用，就会被GC（可自定义）
 2. 按值封送
    1. 条件：`[Serializable]`
@@ -1559,9 +1562,9 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 异常：`SerializationException`
 5. Windows对AppDomain一无所知
 #### 卸载AppDomain
-1. 过程：
+1. 过程（停止逻辑——回收数据）：
    1. 挂起所有线程
-   2. 如果有线程正在或将要执行AppDoamin中代码，则直接抛出TreadAbortException并恢复运行，线程展开+finally
+   2. 如果有线程正在或将要执行AppDoamin中代码，则直接抛出`TreadAbortException`并恢复运行，线程展开+finally
    3. CLR遍历堆，标记对象为不存在
    4. 垃圾回收
    5. 恢复线程执行
@@ -1590,7 +1593,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    2. 依赖字符串对比，*效率低*
    3. 调用方法时需要对参数进行*打包到数组和解包*
    所以更推荐使用类型及接口
-6. Type和TypeInfo的区别
+6. `Type`和`TypeInfo`的区别
    1. `Type`是`TypeInfo`的轻量级引用
 7. 执行反射获取的方法时，无非就是`Invoke()`，然后传入`Object`（实例方法）以及参数
 ### 使用反射发现类型的成员
@@ -1637,7 +1640,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 3. `OnDeserializing`-`OnDeserialized`反序列化前后
    1. 前者用于反序列化前设置默认值
    2. 后者用于反序列化之后重建待计算值——例如以半径计算面积。和NonSerialized可以协同使用
-4. `OptionalField`用于设定某些字段在流中可以有可以没有，没有的话可以不要。我估计这个和OnDeserializing可以一起用
+4. `OptionalField`用于设定某些字段在流中可以有可以没有，**没有的话可以不要**。我估计这个和OnDeserializing可以一起用
 ### 格式化器如何序列化类型实例
 1. 流程：
    1. `FormatterServerice`反射获取`MemberInfo[]`
@@ -1653,7 +1656,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 ### 控制序列化/反序列化数据
 1. 就是自己实现`ISerializable`接口
    1. 目的：
-      1. 避免CLR序列化机制使用反射的性能开销
+      1. 避免CLR序列化机制使用*反射*的性能开销
       2. 序列化控制特性有的时候不能给到有效的控制
    2. 只有一个`GetObjectData()`
    3. 优先级大于`Serializable`特性
@@ -1669,7 +1672,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
 1. 表示序列化的数据来源和去向的类型（同一机器？进程？还是别的）
 2. 可以在序列化器的`Serialize()`和`Deserialize()`中传入
 ### 序列化代理
-1. 序列化部分和ISerializable基本一致，
+1. 序列化部分和`ISerializable`基本一致，
    1. 反序列化部分不是构造器了，而是`Object SetObjectData(Object, SerializationInfo, SteamingContext)`
 2. 使用的时候需要做两个事：
    1. 创建一个*代理选择器*，告诉他为该种类型使用该种代理
