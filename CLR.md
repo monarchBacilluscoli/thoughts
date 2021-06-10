@@ -1667,7 +1667,7 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
    1. 一个构造器用于反序列化时构造对象，或者只存储`SerializationInfo`用别的函数来初始化他们（比如需要重建哈希表的时候）
       1. 在其中可以调用info的各种GetValue方法
    2. 一个`GetObjectData(SerializationInfo info, StreamingContext context)`, 用于序列化写入流
-   3. 可以加上`IDeserializationCallback.OnDeserialization(Object sender)`, 所有key/value对象都反序列好之后用于重建
+   3. 可以加上`IDeserializationCallback接口的OnDeserialization(Object sender)`, 所有key/value对象都反序列好之后用于重建
 ### 流上下文
 1. 表示序列化的数据来源和去向的类型（同一机器？进程？还是别的）
 2. 可以在序列化器的`Serialize()`和`Deserialize()`中传入
