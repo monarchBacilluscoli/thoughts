@@ -160,3 +160,27 @@ UIController、ListUIController和UITask的作用
     2.  绑定路径是什么
     3.  绑定的类型（就是那个Controller）是什么
     4.  类型的名称
+
+## 实现的三个文件细抠
+
+### 问题
+1. 这块还不是很懂
+   ```CSharp
+            m_playingUpdateViewEffectList.Add(null);
+            UpdateView();
+            m_playingUpdateViewEffectList.Remove(null);
+   ```
+2. `UIProcess`又是什么玩意
+   1. 基类里面不持有任何的外部内容啊，那它怎么控制播放的？
+      1. 好像CommonUIStateEffectPorcess是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
+         1. 那么这个`CommonUIStateController`又是个啥
+      2. 这里是一个这样的模式，`Start()`调用时设置一个state变量，然后调用OnStart之类进行实际播放
+         1. 原因估计是因为动画播放要跨帧，不是一下子播放完的（也不是啊，这个东西只有个Start和Stop）
+            1. 那可能因为状态切换间有延迟，比如等动画播放完毕了才能stop
+3. `CommonUIStateController`好像是一组结构确定了的动画控制器之类的东西
+   1. 能查找Style，显示这个style的对象，设置ColorSet，播放**Tween**
+   2. 真的就是实际播放
+4. Tween是什么？
+   1. “Tween动画”是一个比较特殊的叫法。我估计可能是受到了Flash的影响。Tween其实是In-between的简写，指的是计算机自动插值补全关键帧Keyframe之间的动画。补全的动画既可以是动态Motion也可以是变形Morph。所以Tween其实只是一个补全的过程，更加合理的称呼应该是关键帧动画。[来源：知乎](https://www.zhihu.com/question/24496292/answer/28086971)
+5. `UIPlayingEffectInfo`又是什么玩意
+6. !**命中不了断点**
