@@ -1,4 +1,4 @@
-# 虎书
+# 计算机图形学入门
 
 ## 线性代数
 1. 行列式通常可以看做是n维的向量围成的超立方体的超体积
@@ -191,6 +191,51 @@ $$\alpha,\beta,\gamma \text{  non-negtive}$$
   * 例子：
     * 点云
       * 需要特别密集的点
-    * 之前的三角形表示
-    * 贝塞尔曲面
+      * 点云到多边形有很多研究
+    * 三角形或者其他多边形面
+      * 连接关系表示也很多样
+        * obj结构: v 坐标 vn 法线 vt 纹理坐标 f（face）v/vn/vt
+    * Bezier Curve
+      * 递归求解
+      * 结果公式
   * 优势：容易枚举所有点，但是不容易知道某个点在不在这里
+
+## 几何3
+### Mesh Operations
+![Loop Subdivision](./pic/LoopSubdivision.png)
+![Loop Subdivision](./pic/LoopSubdivisionUpdate.png)
+1. Subdivision 让网格复杂
+   1. Loop(人家叫Loop) Subdivision
+      1. 增加三角形
+      2. 新顶点根据各个附近的点的位置进行移位（上图）
+      3. 旧顶点也需要做位置更新
+   2. Catmull-Clark Subdivision (General Mesh)
+      1. 奇异点
+      2. 边中点连接面内点
+      3. 更新位置
+      4. 好像这个可以保持sharp的边
+2. Simplification 让网格简化但仍然保持拓扑结构
+   1. 层次结构的几何，就像Mipmap(层次结构的图像)
+   2. 方法：Edge Collapse
+      1. 将一个边坍缩掉变成一个点
+      2. 选择边以及点位置的计算方式的准则是最小二次度量误差
+3. Regularization 长短不定的三角形会给渲染带来一些问题，所以将三角形尽量等边而保持结构
+
+## Shadow Mapping！
+![Shadow Mapping](./pic/ShadowMapping.png)
+问题：这里是一个全局的问题，因为之前shading往往只对一个独立的点进行处理，一旦涉及到点与点之间的关系，比如阴影咋弄？
+
+### 核心思路
+如果一个点不在阴影里并且要被看到，那么这个点*一定会被light和Camera看到*
+
+### 步骤
+1. 从光源看向场景，做一个Z-Buffer的东西（shadow map），但是只记录最浅的深度（能照到的深度）
+2. 从摄像机看某个点，反查这个点在之前shadow map之中的位置得到map中的深度
+3. 比较这个点实际的深度和map中的深度，如果一致（各种方式）就可以被光源照到，就可以计算了
+
+### 软阴影成因
+![](./pic/SoftShadow.png)
+光源是有大小的，所以有些对象区域是可以被部分光源照到，部分照不到的，完全照不到到完全照到的过渡就形成了软阴影。
+
+## 问题
+1. 说了半天，好像Phong shading之类不能直接处理物体自己的遮挡阴影——甚至好像都不能处理物体间的遮挡阴影！

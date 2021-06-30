@@ -1721,3 +1721,6 @@ https://www.ruanyifeng.com/blog/2010/06/ieee_floating-point_representation.html
     *  `lock`语句时锁在`finally`块中释放
     *  `using`语句，`finally`中调用`Dispose()`
     *  `foreach`语句，`finally`中调用`IEnumerator`的`Dispose()`
+
+### 一些新的见识
+1. 即使用了`namaspace XXX {}`没有用`using XXX;`，CSC一样不给你识别`XXX`下的symbol
