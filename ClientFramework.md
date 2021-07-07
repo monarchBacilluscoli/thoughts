@@ -434,6 +434,11 @@
 2. UIManger
 3. TaskManager
 
+## PlayerCtx
+1. 工作：
+   1. 首先负责服务器事件处理的那个大Switch
+   2. 
+
 ## 实现的三个文件
 
 ### UITask
@@ -483,6 +488,9 @@
    4. 逻辑数据改变后加载图标
    5. 播放动画
 
+### NetworkTransaction
+1. 默认构造函数在进行Task的过程中会Block住Input
+
 ### 实现的功能及涉及
 1. 点开
    1. 主要还是把父节点的StartUpdatePipeline()里面所需的调用的补齐就行了
@@ -523,9 +531,9 @@
             UpdateView();
             m_playingUpdateViewEffectList.Remove(null);
    ```
-2. `UIProcess`又是什么玩意
+2. **`UIProcess`又是什么玩意**
    1. 基类里面不持有任何的外部内容啊，那它怎么控制播放的？
-      1. 好像CommonUIStateEffectPorcess是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
+      1. 好像他的派生类`CommonUIStateEffectPorcess`是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
          1. 那么这个`CommonUIStateController`又是个啥
       2. 这里是一个这样的模式，`Start()`调用时设置一个state变量，然后调用`OnStart()`进行实际播放
          1. 原因估计是因为动画播放要跨帧，不是一下子播放完的（也不是啊，这个东西只有个Start和Stop）
@@ -540,4 +548,52 @@
    2. 
 6. !**命中不了断点**
    1. 2017有这个毛病，2019就么得了
+7. 那个`ItemListPool`到底是一个啥玩意
+   1. 为啥进出Pool除了个`SetActive()`基本没有Refresh之类的操作？，这真的可行吗？
+8. 调用父类的OnXXX函数都有啥规范吗？
+   1. 难道是进入的先调父类？离开的先调子类？
+9. 来自ItemList控制器中的迷惑：按说`UpdateList()`方法中应该有用`m_cachedItemList`去foreach更新包含的Item的图标啊啥的，但是这里调用的所有函数都没用这玩意
+   1.  基于“肯定有个地方这么用了”的认知，那干脆看看这个m_cachedItemList到底都在哪里用了
+       1.  查找后发现，有个函数叫`OnItemStoreUIItemFill()`的，其中根据传进来的Item的index以及m_cachedItemList更新了icon。
+       2.  具体查查是被注册到Item控制器的`EventOnUIItemNeedFill`事件上了
+       3.  但是从这边查就很没有头绪了，另一边
+           1.  UpdateList中有一个`RefillCells()`->`ScrollCellIndex()`（**这名字真他妈让人迷惑**）->`EventOnScrollCellIndex`
+           2.  而以上那个事件挂了`ScrollCellIndex()`->`EventOnUIItemNeedFill`
+           3.  而以上那个事件挂了`OnItemStoreUIItemFill()`...回到了之前反查的结果
+       4. 一个更新Icon的函数，这一串链子真的是
+10. `OnItemFill()`用于更新ItemIcon的函数为什么突然没头没脑地用了一个Helper？为什么要用这样一种模式
+    1.  哦，好像是因为这里并不仅仅是更新Icon本身的东西，而是上头还有一些Sprite.
+11. 为啥`TaskManager`的`Tick()`要把List复制一遍？
+    1.  难道是怕同时加入新的减去旧的啥的？
+    2.  对，是的，但是原因不是那种多线程导致的变化，而是tick的每个Task之内会存在逻辑调用Task的注册和删除
+12. 为什么有了`TaskManager`还要有`UIManager`这种东西
+    1.  `TaskManager`是`Tick`的发动机
+    2.  但是UIManager是UITask的图书馆，顺道还提供了服务
+13. 如何使用管道重定向函数？
+    1.  子Task在resources加载完成后调用重定向函数，外部得到通知
+    2.  等到外部认为所有子`Task`都准备完成之后任何时间，主动调用所有子`Task`的`ReturnFromRedirectPipLineOnLoadAllResCompleted()`
+14. InitAllControllers在哪里被调用？
+    1.  在所有资源都被加载完成的回调中被调用，或者在`ReturnFromRedirectPipelineOnXXX()`被调用
+15. Task和UITask的区别
+    1.  就看他们俩是干啥的把：
+        1.  Task层只是提供了Task这种抽象逻辑包的基础设施，即启动、暂停、停止和Tick以及与这些功能相关的成员和用于发动Tick的Task管理器
+        2.  UITask层则更为具体，在Task的基础设施之上定义了整个UI启动的数据更新、资源收集、更新显示的整个流水线，以及UITaskManager这一UITask的图书馆、以及Intent这一具体的UITask的意图入参。
+            1. 冲突组：UIManager还通过最初Register之中注册的task的冲突关系来处理Task之间的冲突，以及一系列诸如停止组之类的函数
+                1.  这个注册的模式又是Enum->int
+            2. Intent栈：**干吗用？**
+            3. UI的输入锁
+        3.  最明显的差异就是使用UITask不要像NetTask一样自己new一个task出来并Start了，而是由UIManager进行符合UI逻辑的启动/重入/更新操作。
+
+
+### 想法
+1. `ItemStoreUITask.IsNeedUpdateDataCache()`这个函数做的逻辑非常之不咋地，按说IsXXX应该完全没有副作用的艹。
+2. Task中有个`OnItemListUITabChanged()`这里负责更新filter，然后他肯定是监听`ListController`中的EventOnToggleChanged嘛。从这里可以看出ListController只是提供了更新、缓存等等底层功能的接口，主要的协同逻辑（根据按下的toggle更新filter、更新缓存以及最后的整个管线更新）是在Task里面定义的。
+3. 妈的学到了，事件的优势：
+   1. 我本来计划的我的实现将在实现了核心逻辑之后，把以前所有的外部调用这个类的接口copy过来重写一遍。
+   2. 听了XSF的方法发现本来这些玩意都是可以拆出来的，毕竟“按下按钮要执行什么”并不是由Button（外部）来决定，而是由我来决定（通过将我自己的函数绑定在Button的OnClick上）！
+      1. 绝了
+      2. 这就是一种被调者来安排主调者逻辑的模式，应该叫什么什么反转
+4. LogicBlock = LB;
+5. 派生类将会调用基类的默认构造函数
+   1. *所有参数都给定的构造函数*会被视作默认构造函数使用
    2. 
