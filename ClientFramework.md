@@ -68,6 +68,14 @@
 2. Bundle和SingleBundle的关系
 3. 自动绑定是什么，怎么实现的
    1. 就是创建的时候自动挂载节点
+4. 关于Bundle的缓存?
+   1. bundle缓存是BundleName到BundleCacheItem的映射
+   2. 后者保存了Bundle的强引用
+   3. Bundle加入缓存的时候是在LoadBundle中进入的（看来这个不可控啊）
+5. 从物品路径查到到底是哪个Bundle是怎么实现的？
+   1. Entry会在开始的时候从网上更新所有的Bundle数据，这个数据中包含资源到SingleBundleData的映射
+   2. 这个数据会被存储到RM中在需要使用的时候被调用；
+6. Editor状态的Load没有实现
 
 ### 记忆
 1. 一般实机上使用的是AssetBundle的加载方式
@@ -437,6 +445,8 @@
 ## PlayerCtx
 1. 工作：
    1. 首先负责服务器事件处理的那个大Switch
+      1. 以及以上所有内容的**数据部分**的回调处理，在这之后会派发给UI做UI处理
+         1. 动力源是Client的Tick()
    2. 
 
 ## 实现的三个文件
@@ -569,21 +579,65 @@
 12. 为什么有了`TaskManager`还要有`UIManager`这种东西
     1.  `TaskManager`是`Tick`的发动机
     2.  但是UIManager是UITask的图书馆，顺道还提供了服务
+    3.  两者都有注册的逻辑，只不过一个注册是为了处理1. UI组冲突（TaskRegDict*其实只注册了名字和Task的静态信息，而没有持有Task的实例*）2.（TaskList*Task缓存*）3. IntentStack（*UI返回*），另一个注册（*持有实例*）是为了处理具名Task唯一性/根据姓名调用（TaskRegDict）、Tick的逻辑（TaskList）
 13. 如何使用管道重定向函数？
     1.  子Task在resources加载完成后调用重定向函数，外部得到通知
     2.  等到外部认为所有子`Task`都准备完成之后任何时间，主动调用所有子`Task`的`ReturnFromRedirectPipLineOnLoadAllResCompleted()`
+        1.  例如某个使用了重定向逻辑的Task就保存了所有三个子Task的资源加载完成的逻辑作为成员变量，每次使用这个重定向函数判断是不是成功了，如果成功则Resume播放以另外三个成员变量保存的这些Task
 14. InitAllControllers在哪里被调用？
     1.  在所有资源都被加载完成的回调中被调用，或者在`ReturnFromRedirectPipelineOnXXX()`被调用
 15. Task和UITask的区别
     1.  就看他们俩是干啥的把：
         1.  Task层只是提供了Task这种抽象逻辑包的基础设施，即启动、暂停、停止和Tick以及与这些功能相关的成员和用于发动Tick的Task管理器
         2.  UITask层则更为具体，在Task的基础设施之上定义了整个UI启动的数据更新、资源收集、更新显示的整个流水线，以及UITaskManager这一UITask的图书馆、以及Intent这一具体的UITask的意图入参。
-            1. 冲突组：UIManager还通过最初Register之中注册的task的冲突关系来处理Task之间的冲突，以及一系列诸如停止组之类的函数
+            1. 冲突组：UIManager还通过最初Register之中注册的task的冲突关系（这个冲突组Task并不知道，只在这个图书馆里）来处理Task之间的冲突，以及一系列诸如停止组之类的函数
                 1.  这个注册的模式又是Enum->int
             2. Intent栈：**干吗用？**
+               1. 就是用来链式返回之前打开的窗口，例如`ReturnUITaskToLast()`就可以直接返回至栈顶的第一个intent
+               2. `StartUITask()`其中有一个清空intent栈的参数，是用于返回非常底层的task从而不需要任何栈的那种任务。
             3. UI的输入锁
         3.  最明显的差异就是使用UITask不要像NetTask一样自己new一个task出来并Start了，而是由UIManager进行符合UI逻辑的启动/重入/更新操作。
-
+16. DataContainer到底是为上层服务的还是为下层服务的？
+17. LogicBlock的Client和Server的划分是为了什么？
+    1.  似乎Base只是为了代码重用，最基本的修改功能、记录日志、遍历等等都有了，以及服务器和客户端完全相同的DataContainer
+    2.  但是Client需要一些根据info来更新、Filter的逻辑（向上(客户端)支持），需要继承出来
+18. 为什么Client的里面有一些并非是根据UpdateInfo而是直接根据id什么删除物品的代码？为什么客户端可以直接在本地修改数据？
+    1.  这里的使用情形是由别的类似于“升级从而消耗素材”的行为造成的，源行动本身向服务器发送了请求，然后在Ack中调用了这种直接修改数据的函数，**估计是这里的“消耗素材”的逻辑和服务器逻辑一致所以为了优化？方便？而直接在本地处理了**
+19. 使用物品时的脏标记是用来干啥的？
+    1.  计算仓库容量，想必有时的道具使用十分频繁，而在不显示容量的时候根本不需要增加这种耗时的操作，所以加入脏标记——在用的时候才更新
+20. 所以`DataSection`到底在什么地方发挥作用了？光看ItemStore这种新建item、根据index得到DS根本看不出个屁
+21. StartUITask的参数都是干啥的？
+    1.  句柄和意图intent
+    2.  资源加载完成回调（重定向的意思是这个回调被调用的时候整个流程会暂停，而不是仅仅通知并继续进行）
+    3.  Pipeline完成回调
+    4.  两个标志：
+        1.  **是否放到intent栈**
+        2.  **是否清空intent栈**
+22. Intent的几种分类？句柄和意图
+    1.  Base：Name，Mode
+    2.  Custom：+ 一个Dic
+    3.  Returnable：+ 先前的Intent
+23. 管线劫持类型的参数是什么？裸Action
+24. WithPrepare的区别是啥
+    1.  WithPrepare的意图是在某个Task本身存在在data、resource、view这些pipeline环节之前的较为耗时的准备动作或者
+25. StartUpdatePipeline中的`canBeSkip`在哪里用到？如何判断是不是canBeSkip
+    1. 给了个默认实现，默认实现的逻辑很有趣：如果当前时间小于上次启动Pipeline时间，则跳过hhh
+    2. 并且没有别个重写了这玩意儿  
+26. `StartUpdatePipeline`和`StartUITask`还有Task的`Start`的参数和内部逻辑差异在哪里
+27. m_playingUpdateViewEffectList是干啥用的
+    1.  听说有他的话则是一个异步过程，等count=0这个Task才会被结束
+    2.  注意这段代码：
+          ```CSharp
+               m_playingUpdateViewEffectList.Add(null);
+               UpdateView(); // 这里会调用PlayUIProcess()，当播放完任意一个UIProcess时，都会回调去判数组是否是空，从而执行PostPipelineEnd()
+               m_playingUpdateViewEffectList.Remove(null);
+               // 之后会查看这个数组是否为空，从而执行PostPipelineEnd()
+          ```
+         所以如果这个Effect只播放一帧，那么在`UpdateView()`之中Process就会直接播放完毕，并调用Post，然后出来之后再判空一次，Post就会播放第二次。而UpdateView时Add的null就会保证UpdateView的那次不会被调用
+28. UITaskBase中已经加载的层判断方式有点迷惑，因为m_index确实有点奇怪，并且好像没有被使用
+29. 主asset直接使用Path缓存，而subasset需要拼接完整路径就有点迷惑
+    1.  并且这里似乎只有fbx和png需要特殊的处理，就多少有点不能理解
+30. 
 
 ### 想法
 1. `ItemStoreUITask.IsNeedUpdateDataCache()`这个函数做的逻辑非常之不咋地，按说IsXXX应该完全没有副作用的艹。
@@ -596,4 +650,43 @@
 4. LogicBlock = LB;
 5. 派生类将会调用基类的默认构造函数
    1. *所有参数都给定的构造函数*会被视作默认构造函数使用
-   2. 
+
+
+# 重新列出提纲
+
+## UITask和UIManager
+1. Task的意义、基本结构
+   1. 状态
+   2. 对应的函数
+      1. `Start`、`Pause`、`Resume`、`Stop`（其中两个有`onPipelineEnd`）
+   3. 延时执行的Action
+2. TaskManager的作用、基本结构
+   1. `Register()`
+   2. `Tick()`
+3. 三种关键的`Task`：
+   1. `UITask`
+   2. `NetworkTransactionTask`
+      1. 超时
+   3. `MapSceneTaskBase`（这个就完全没讲）
+4. UIManager的几个关键函数
+   3. `StartUITask()`和`StartUITaskWithPrepare()`的差异
+   4. `ReturnUITask()`的特殊操作，意义为何
+      1. 参数
+   5. 返回
+   6. 启动
+   7. 重定向
+5. UITask：
+   1. `三种OnStart()`、`OnResume()`、`OnNewIntent()`
+   2. `StartUpdatePipeline()`
+      1. 参数
+   3. 静态资源相关函数——Need、Collect、StartLoad
+   4. 动态资源相关函数——一样
+      1. 动态资源和静态资源加载的区别：静态资源加载过程需要创建Layer。
+   5. 在哪里处理Layer的显示顺序的问题？
+6. UITaskPipelineCtx包含什么
+7. InitAllUIController的基类实现都干了点啥？
+8. 
+ 
+## 难点
+1. `Task`的启动函数、`UIManager`的启动函数、`StartUpdatePipeline`的逻辑
+2. `UIIntent`和`UITaskPipelineCtx`
