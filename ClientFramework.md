@@ -3,8 +3,9 @@
 ## 問題
 1. 我如何才能正確打開這個框架
    1. 給到的trunk到底是游戲工程還是什麽？如何正確打開並使VS正確管理Project從而可以使用自動補全、符號查找之類
+   2. 解决了，只要lua的生成不碰，使用Unity2017，打开对应的GameEntry场景即可。
 2. 导出框架有问题
-   1. 因为这已经是ok的项目了
+   1. 因为这已经是ok的项目了，这不是框架
 
 ## 配置介紹
 1. List的設定爲什麽會有不同：
@@ -27,26 +28,27 @@
 3. NONE导出类型是供参考的（比如说明）
 4. 数据准备过程
    1. 配置文件分析工具将配置文件生成为两个部分：Code和Data
-      1. Code是类型定义orEnum
+      1. Code是类型定义or Enum
       2. Data是包含实际数据的bin文件
-   2. Unity中BlackJack——Framework——ConfigData——BuildAll会把bin文件拷贝到Assets/Gameproject/RuntimeAssets/ConfigData
-      1. 并且Unity会将bin转换成.asset（就是SO），其中保存了bin文件的数据。
-         1. 应该是包了一层，用于使Unity可以以二进制数据的方式加载他  
-   3. 然后二进制数据加载到内存中，才会有Protobuff反序列化生成真实数据
-   4. **然后这些数据可以通过ID来获取（啊？啥的ID，啊，不是那个ST的ID虽然可能那个也可），也就是一次获取数据的一行？那这个ID从哪获取？**
-      1. 哦，其实文件里也是分了类的，比如GetConfigDataCharChipSlotInfo()实际上只是从一个单独的存储了CharChipSlot信息的表里查找某个ID的数据而已 
+   2. Unity中BlackJack——Framework——ConfigData——BuildAll**会把bin和自动生成的cs文件拷贝**到Assets/Gameproject/RuntimeAssets/ConfigData
+      1. 并且Unity会**将bin转换成.asset**（就是SO），其中保存了bin文件的数据。
+         1. 应该是包了一层，用于使Unity可以以二进制数据的方式加载他
+         2. 是的，新的SO中只有两个字段：**数据字节和MD5码**用于内容校验从而判断是否更新数据，填充方式仅仅是直接读取文件并赋值给数据字节，并计算MD5赋值给另一个成员
+   3. 然后二进制数据加载到内存中，才会有Protobuff反序列化生成真实数据，并在之后基于自动生成的类型结构进行解析
+   4. 然后这些数据可以通过ID来获取（啊？啥的ID，啊，不是那个ST的ID虽然可能那个也可），也就是一次获取数据的一行？那这个ID从哪获取？
+      1. 哦，其实文件里的各个数据获取途径也是分了类的，比如`GetConfigDataCharChipSlotInfo()`实际上只是从一个单独的存储了CharChipSlot信息的表里查找某个ID的数据而已 
 
 #### 配置导出和生成到项目的过程
 1. protobuf导出了类定义（结构）和bin文件（数据，每个sheet一个）
 2. bin要用那个插件变成asset，路径如上
-3. `ConfigDataLoaderBase`用于读取并反序列化数据
+3. `ConfigDataLoaderBase()`用于读取并反序列化数据
 4. Asset文件有了，数据如何获取？
    1. ? 第一步从Asset中解出来二进制数据的过程需要再看一看，可能在基类里面
    2. `ClientConfigDataLoader.StartInitializeFromAsset()`中给了整个加载的过程
    3. `ClientConfigDataLoadAutoGen`给了所有的定义的类型（sheet）的反序列化获取数据的办法
-      1. 也是几重回调，都是在OnEnd的时候处理下一步：
-         1. 加载数据
-         2. 在`OnInitLoadFromAssetEndWorker`回调中对各种类型的数据（真的茫茫多）进行反序列化并填充数据Dic
+      1. 其中`OnInitLoadFromAssetEndWorker()`最为重要，它对于所有类型的配置数据都进行了处理，其过程为：
+         1. 加载文件中二进制数据到内存（在OnEnd函数调用之前）
+         2. 在该函数中，从内存里的获取配置文件的二进制数据，并通过Protobuf来进行Deserialize，并将最终的数据保存到数据成员
 5. 多语言是如何被处理的？
    1. 在`GameManager.StartLoadConfigData`函数中有三重回调，都是OnEnd时回调，分别加载
       1. 配置数据
@@ -56,37 +58,37 @@
 ##### 问题
 1. Lazy加载都加载啥？如何Lazy加载
    1. 很简单，Lazy和非Lazy走的不是一条线，Lazy在AutoGen中就是那些ST表，有个`GetAllLazyLoadConfigDataAssetPath()`得到所有
-   2. 然后在多语言的InitStringTable的时候有个SetLocalization()，这里会调用对应的InitGDBStringTable()之类的ST，这里会调用LoadLazyLoadConfigDataAsset()并传入对应的Name。
-2. *LuaDummy是啥*
-3. 那么`StartLoadConfigData()`这个最主要的玩意什么时候被调用？
+   2. 然后在多语言的InitStringTable的时候有个`SetLocalization()`，这里会调用对应的`InitGDBStringTable()`之类的ST，这里会调用`LoadLazyLoadConfigDataAsset()`并传入对应的Name。
+2. 那么`StartLoadConfigData()`这个最主要的玩意什么时候被调用？
    1. 在GameLauncher的Entry的Start-UpdatePipeline里
    2. 也就是说起始会有Start一个Entry（UI）的Pipline，这里会调用所有的ConfigData的load。
       1. 其实有点奇怪，为什是一个UITask去调用这个显然是逻辑的ConfigData的load
 
 ## 资源管理
 1. 什么是`WeakReference`——并不增加引用计数，仍然可以被GC `Reclaim()`
-2. Bundle和SingleBundle的关系
+2. `BundleData`和`SingleBundleData`的关系
+   1. 两个都有版本号
+   2. 都有列表，`BundleData`的列表指向各个`SingleBundleData`
+   3. Single里面还有名字
+   4. 至于从Path到SingleBundleData的映射是在`BundleDataHelper`中的一个Dic中存在的，它会在游戏开始时构建
 3. 自动绑定是什么，怎么实现的
    1. 就是创建的时候自动挂载节点
 4. 关于Bundle的缓存?
    1. bundle缓存是BundleName到BundleCacheItem的映射
    2. 后者保存了Bundle的强引用
-   3. Bundle加入缓存的时候是在LoadBundle中进入的（看来这个不可控啊）
+   3. Bundle在`LoadBundle()`时进入缓存（看来这个不可控啊），存储在`ResourceManager`中
 5. 从物品路径查到到底是哪个Bundle是怎么实现的？
-   1. Entry会在开始的时候从网上更新所有的Bundle数据，这个数据中包含资源到SingleBundleData的映射
+   1. EntryPipeline会在开始的时候调用RM从网上更新所有的Bundle数据，这个数据中包含资源到`SingleBundleData`的映射
    2. 这个数据会被存储到RM中在需要使用的时候被调用；
-6. Editor状态的Load没有实现
 
 ### 记忆
-1. 一般实机上使用的是AssetBundle的加载方式
 2. LoadAsset()传入的资源路径是自Assets起
    1. ResourceManager中有Cache（<string, AssetCacheItem>），cache中引用资源的是弱引用
-   2. 
 3. LoadAssetsCorutine()就是加载一组资源，串行的方式
 4. 从Bundle中Load就是先查path在哪个bundle，没有就把它下下来先，然后通过加载现场去加载所有的依赖Bundle
 5. 整个流程就是缓存直接-缓存Bundle-Bundle下载这个样子。
-6. BundleData里面的version从哪拿到的？玩家怎么知道version变化的？
-   1. **他似乎说了一个三打不溜什么剋使的地址指定新的版本号**
+6. `BundleData`里面的version从哪拿到的？玩家怎么知道version变化的？
+   1. **他似乎说了一个三打不溜什么剋使的地址指定新的版本号**，是，那个`LoadFromCacheOrDownload()`方法需要指定一个版本号（以及URL和CRC）—来进行下载
 
 ### 问题
 1. `LoadAssetCoroutine()`里有一个模式不理解：
@@ -100,12 +102,12 @@
    }
    ```
    1. `MoveNext()`函数在成功Move的时候会返回`true`，失败的时候返回`false`
-   2. 然后我们就看那个iter到底是什么
+   2. 然后我们就看那个`iter`到底是什么
       ```CSharp
       ```
    3. 先搁置，看看Coroutine的意思是什么 [来源](https://stackoverflow.com/questions/12932306/how-does-startcoroutine-yield-return-pattern-really-work-in-unity)
       1. 用途：可以用于多帧的处理（将任务分成chunks），例如A*中一帧只找一部分路径
-      2. 要求：需要在每次返回的时候记录状态，如果自己维护，成本将非常高
+      2. 要求：需要在每次返回的时候**记录状态**，如果自己维护，成本将非常高
       3. 开始猜测Unity Coroutine的关键点：
          1. `return` 一个 `IEnumerator`
          2. `yield`
@@ -130,7 +132,7 @@
                     if(Input.GetKeyDown(KeyCode.Escape)) { break; }
                   }
                   ```
-      4. 最终Unity如何处理帧之间的rotuine的，一个可能的结构是：
+      4. 最终Unity如何处理帧之间的corotuine的，一个可能的结构是：
          ```CSharp
          List<IEnumerator> unblockedCoroutines;
          List<IEnumerator> shouldRunNextFrame;
@@ -165,7 +167,7 @@
          unblockedCoroutines = shouldRunNextFrame;
          // 然后在别的位置就按照条件分门别类地调用他们即可
          ```
-         核心就是把这些IEnumerator分门别类地存起来（触发时机+协程IEnumerator）分别进行调用，然后在触发时候就调用他们即可
+         核心就是把这些IEnumerator分门别类地存起来（触发时机+协程IEnumerator）分别进行调用，然后在Tick的相关时机触发的时候就调用他们即可
             1. 注意这里根据了Current进行分类的
       5. 最终，最初的模式：
          1. 目的：实现Coroutine的嵌套
@@ -184,7 +186,7 @@
       1. 可以是`switch`中的label:`goto case 1`
       2. 可以是自定义的label，仅仅是另起一行加冒号`LB_LOADEND:`
       3. 为什么回调的参数前面会加l?
-   3. `BundleCacheItem`干嘛用的，命中指的是什么？
+   3. `BundleCacheItem`干嘛用的，命中指的是什么？就是有咩有这个cache
       ```CSharp
       protected class BundleCacheItem
         {
@@ -223,7 +225,7 @@
       ```
       1. 这个玩意和`AssetCacheItem`差别是啥
       2. 它怎么存：
-         1. 跟AssetCacheItem一致，都是由一个Dic来管理
+         1. 跟`AssetCacheItem`一致，都是由一个Dic来管理，这里的映射是从`bundleName`->`AssetCacheItem`
       3. 先看它怎么用吧：
          1. 从AssetPath可以拿到所在Bundle的`SingleBundleData`，根据这个可以得到Bundle名字：
             1. `SingleBundleData`有：
@@ -231,37 +233,42 @@
                2. 包含的资源列表(path)
                3. 各种校验变量
                4. 其他设定
-         2. 之后用名字可以从GetAssetBundleFromCache拿到`BundleCacheItem`进而拿到Bundle
-         3. 然后就从里面拿Asset就好了
-         4. 就没了
+         2. 之后用名字可以从`GetAssetBundleFromCache()`拿到`BundleCacheItem`进而拿到Bundle
+            1. 当然如果没在cache中那就只能`LoadBundle()`创建load上下文从而从网上下了
+         3. 然后就从`Bundle`里面`LoadAsset()`就好了，这里的路径也是从asset开始的路径
       4. 其实看结构就几个东西：
-         1. 首先是核心的AssetBundle和Dependencies;
+         1. 首先是核心的`AssetBundle`和`Dependencies`，非常重要
          2. 然后就是一些跟访问有关的状态变量：引用计数、上次访问的时间、命中次数等
          3. 最后的最后就是一些设定如超时时间
-   4. 加载Bundle的时候也有一个模式，就是`OnComplete`的回调
+         4. 比较一下，这里需要的就是一些跟内存管理有关的东西，当然这个依赖项比较奇怪。而SingleBundleData需要的则是一些跟下载校验有关的东西
+   4. 加载Bundle的时候也有一个模式，就是`OnComplete()`的回调
       1. 例如在LoadAssetXXX函数体内看不到的“加入缓存”逻辑链在`OnComplete`回调中，最后在LoadAsset函数中调用`PushAssetToCache`加入缓存中
-         1. 这个`PushAssetToCache()`会存储`BundleCache`和`AssetCache`
    5. 加载现场
       1. 前置条件：Unity的下载管理器在一次只允许一个下载请求（no，应该是*同一个bundle只允许一个*）
-      2. 机制：如果当前bundle的加载现场已经在运行则当前新的加载现场不进行操作等待当前现场完成，如果完成了则会直接`OnCompltete()`回到调用者。
+      2. 机制：如果当前bundle的加载现场已经在运行则当前新的加载现场不进行操作等待当前现场完成，如果完成了则会直接`OnComplete()`回到调用者。
          1. 其中`yield break;`会直接让这次的Enumerator come to an end
-      3. 
    6. 可以弄一下Bundle的打包和加载流程
          
       
 #### 自动绑定
 1. 实际上我自己就在做这个事，只不过我的绑定对象的路径是直接写在逻辑里了的，而这里是通过给一个变量一个带路径的attribute，将这个路径的物件直接绑给这个变量（这个可以实现一波）
-2. `PrefabControllerCreator`就是将某个Controller动态创建至某个Prefab的机制（又加了一步）
+2. `PrefabControllerCreator`就是将某个`Controller`（脚本）动态创建至某个Prefab的机制（又加了一步）
    1. *为什么要用这个？*
-      1. 估计是因为Controller实际有很多，并不想一个个手动绑定（毕竟Controller做的是“将节点赋值给Controller，而不是将Controller挂在Prefab上”），所以这里需要一个管理器来绑定Controller
-   2. 使用方式是（一个小细节）：使用Creator的静态函数把那个对象传进去然后这个静态函数会解析上面的Controller描述（`ControllerDesc`）并绑定对应的Controller
+      1. 因为Controller实际有很多，并不想一个个手动绑定（毕竟Controller做的是“将节点赋值给Controller，而不是将Controller挂在Prefab上”），所以这里需要一个管理器来绑定Controller
+   2. 使用方式是（一个小细节）：使用Creator的静态函数把那个对象传进去然后这个静态函数会解析creator上面的Controller描述（`ControllerDesc`）并绑定对应的Controller
       1. 所以这其实是个工具函数，工具函数就静态就好了
       2. `ControllerDesc`其中全部是string描述，所以controller都是用反射来创建的
-3. `PrefabResouceContainer`用于实现Prefab复用
+3. `PrefabResourceContainer`用于实现Prefab复用
    1. 使用原因：至少2017版本中，如果Prefab A包含另一个Prefab B, 这个B的对象并不能跟随Prefab的变化而变化——此时Prefab和对象的联系已经断掉了
    2. 哦，通过只是脚本引用——而没有直接挂进去的prefab（避免断开联系而失效），来在创建时自动加载子prefab从而实现Prefab更新-Prefab的对象也更新的效果
       1. *奇怪的是，`PrefabResourceContainer`中并没有进行`Instantiate()`之类的啊？难道只是储存数据？*
+         1. 对，没错，就是他妈的存储Asset的路径数据，所有的方法也都只跟收集Asset有关
 4. 自动绑定的过程：
+   1. 某个`Controller`根据写死的Prefab名在同级的Container（通过GetComponent绑定到字段）中搜索，找出待挂载的Asset路径
+   2. 将该Prefab instantiate出来并根据ctrl硬指定的某个父节点挂载，并调用静态函数`PrefabControllerCreator`的`AddControllerToGameObject()`对其进行初始化
+   3. 该函数将搜索手下所有的creator遍历并进行creator的脚本执行`CreateAllControllers()`
+   4. 该函数首先对所有creator的描述中的controller进行创建（从DNName中LoadType，并直接AddComponent()（非泛型））
+   5. 然后在所有ctrl创建好并存储在CTRLList之后对其进行遍历绑定其中的成员
 5. 试试2019的Prefab之间的关系能不能OK
    1. 现在是OK的了，尝试也尝试通过了，[这里](https://zhuanlan.zhihu.com/p/49805994)也说明了在Unity2018.3中实现了这个功能
 
@@ -269,36 +276,45 @@
 1. `SceneManager`负责管理Layer
    1. 创建Layer
       1. 创建Layer会首先在hierarchy中创建一个Dummy节点Name+`_LayerRoot`
-      2. 然后根据传入的资源路径*加载资源*
-      3. 资源加载完毕后会在`OnAssetLoadComplete()`中`Instantiate()`并创建之
-      4. 这时Layer会进入unused列表中
+      2. 加入到name->layer的字典
+      3. 然后根据传入的资源路径*加载资源*
+      4. 资源加载完毕后会在`OnAssetLoadComplete()`中`Instantiate()`，并将之绑定到LayerRoot下
+      5. 这时Layer会**进入unused列表中**，所以不用设置脏标记
    2. 销毁Layer
       1. 在Loading中则等待Loading完成
       2. 在栈中则先弹栈
-      3. 销毁之
+      3. 从各种list/Dict中移除并Destroy
+      4. 此处如果Layer在栈中，由于弹栈会调用PopLayer，在那里面会设置**脏标记**
    3. PushLayer
       1. 从unused列表中出栈，并压栈`m_layerStack`中
-      2. 进入合理的Root
-      3. 设置脏标记用于Update Stack顺序，这个函数调用是在`Update()`中
+      2. 设置状态
+      3. 进入合理的Root
+      4. 设置**脏标记**用于Update Stack顺序，这个函数调用是在`Update()`中
    4. PopLayer
       1. 从m_layerStack中走，进unused
-      2. 脏标记
+      2. deactivate
+      3. **脏标记**
 2. 听说一个显示对象就是一个Layer
    1. 那么真的有那么多摄像机？
       1. 可能那些都是一个摄像机，毕竟还有scene的layer和3D的layer
       2. **摄像机之间都是啥关系**
-3. 为什么是UI+3D+UI的结构，也就是为啥是UI在3D之下？
-   1. 是这样的，就是3D+UI+3D中间的UI就是指“在3D之下”的那一层
-      1. 看来3D的Layer会灵活些？为啥 no，不是，3D应该就只有一层
-   2. 现在只支持两层UI中间夹3D，听起来实际完整的结构是（从下到上）：3D+UI+3D+UI(是不是还能+一层3D)
-   3. Group2是下层的layer，但是层级位置比较新
+         1. 首先，`depth`越大，越在上面
+         2. 然后`UpdateLayerStack()`每次遍历到一层的时候都会将`depth-- --`，即从前向后遍历，后面的显示在前面的背后
+3. 为什么是UI+3D+UI的结构，但同时可以见到最后的背景3D图层，那岂不是3D+UI+3D+UI？
+   1. 害，因为这个绘制只关注第一次碰到的3D层和之前/之后UI的关系而已。
 4. Push（显示）和Pop（取消显示）层是从unusedRoot取出或加入
 5. 叠套的绘制顺序由什么控制？
    1. 首先是`StayOnTop`
-   2. 特殊的情况才用到layer的`Priority`
+   2. 特殊的情况才用到layer的`Priority`（已废弃）
    3. 然后是push入栈的顺序
 6. 叠套的绘制顺序由什么实现
    1. 物品摄像机的depth值
+7. 整个Layer的更新过程
+   1. 先按照`StayOnTop`来将Stack分成两个部分，一个部分是OnTop的部分，另一个是非OnTop的部分
+   2. 然后根据遍历整个Stack，碰上*3DLayer之后的全都放到Group2中*
+      ![Layer Sort](./pic/LayerSort.JPG)
+   3. （优化）再遍历一遍Stack，存在Opaque并且full screen的layer则令后面的层都deactivated
+   4. （注意）现在的层排序没有优先度这个东西了，算法里根本无涉这玩意
 ### 问题相关
 `UIController`、`ListUIController`和`UITask`的作用
 ### 涉及脚本
@@ -324,12 +340,12 @@
             3. 调用`EventOnXXXAck`事件去通知UI层显示更新
       2. OnXXXNtf(协议处理)：服务器直接发起
       3. 这些协议都在`OnGameServerMessage`中被处理，而该函数则在各种`Tick`中被包含
-3. PlayerContext和LogicBlock以及DataContainer、DataSection的关系
-   1. 为了根据类型划分数据便于管理，PlayerContext中存储着分为不同类型的信息，这些信息就是LogicBlock。PlayerCtx中持有LogicBlock作为成员
-      1. 在这个基础上，如上所述，PlayerCtx主要负责的是协议收发
-   2. DataContainer是主要用于存储真正的数据的地方，也是要干一些真正的粗活比如`FindOrCreateEmpty`之类，LogicBlock更上层一些（实际上感觉就是一层封装）
-   3. 至于`DataSection`用于解决的是每次更新整个DataContainer代价极大的问题，所以将所有DataContainer拆小，可以模块化更新。
-      1. 比如ItemStore的DataSection就是以物品的index作为划分标准
+3. `PlayerContext`和`LogicBlock`以及`DataContainer`、`DataSection`的关系
+   1. 为了根据类型划分数据便于管理，PlayerContext中存储着分为不同类型的*操作模块*，这些模块就是LogicBlock。PlayerCtx中持有LogicBlock作为成员
+      1. 在这个基础上，如上所述，**PlayerCtx主要负责的是协议的响应！**，响应后通过调用LB来执行真正的操作
+   2. 在LB之下，`DataContainer`是主要用于存储真正的数据的地方，也是要干一些真正的粗活比如`FindOrCreateEmpty`之类，LogicBlock更上层一些（实际上感觉就是一层封装，例如后面将会）
+   3. 至于`DataSection`用于解决的是每次更新整个`DataContainer`代价极大的问题，所以将所有DataContainer拆小，可以模块化更新。（看看哪个地方更新了）
+      1. 比如`ItemStore`的`DataSection`就是以物品的index作为划分标准
          ```CSharp
          private class DataSectionItemStoreInfo : DataSection
          {
@@ -339,47 +355,53 @@
             public List<StoreItemInfo> m_itemList = new List<StoreItemInfo>();
          }
          ```
-4. 所有的On事件回调都在OnServerMessage()里面被resolve
+      2. 至于用到的地方，就是`OnDSItemStoreNtf()`这个函数会更新单独的DS（但是线索到了OnServerMessage就断了）
+   4. 妈的，DC和LB在PlayerCtx中的字段是平级的，会在`OnPlayerInfoInitEndNtf()`使用当前playerCtx初始化LB，而这个初始化函数则会将DC传给LB作为LB的成员！所以LB确实还是操作的DC
+4. 怪了，LB中的函数有一些不操作DC，这是咋回事
+   1. 情况是LB中有一个用作缓存的`ItemList`，其中存储了`LBStoreItem`，而DC中存储的是`StoreItemInfo`，前者包含了后者的引用，+对应物品的`ConfigData`，并且后者初始化了前者
+      1. 此处有一个特别的地方，就是add/delete都需要更新双方，而Update count则只调用了DC的对应函数，原因就是count实际是对两者的修改（因为两者是引用关系）
+   2. **？一般读操作的都是操作的LB中的Item，我估计应该只是查config表操作给做个缓存而已，但是感觉查表操作也不是很费？难道是函数调用问题？**
+   3. 还有一个情况是Ctx中有一个`m_dsItemStoreInfoList`，存储了`DataSectionItemStoreInfo`类型的对象（就是DataSection！里面存的也是StoreItemInfo），DC中的m_itemList是通过该Ctx中的列表初始化的
+      1. 而Ctx中的list可能是通过`OnItemStoreNty`更新的
+5. `StoreItemInfo`中包含`ItemInfo`，后者只是账号中的物品的基本信息，包括堆叠数量、绑定、configId等；前者还包含在Store中的状态：是否作为部件在船上、是否作为货物在船上等。
+6. 所有的On事件回调都在`OnServerMessage()`里面被resolve，这是一个极大的Switch
 #### LogicBlock
 1. 下层有两个东西：
    1. DataContainer
       1. 实际存储数据的集合，跟逻辑无关，只是一个Container
    2. DataSection
-      1. DataContainer可能包含过多对象，数据块可能非常大，这个用来将Container拆分，分块更新
+      1. `DataContainer`可能包含过多对象，数据块可能非常大，这个用来将`Container`拆分，分块更新
 
 ## UITask和UIManager   
 1. 什么是Task？
    1. 客户端完成功能的集合
-   2. 比如我发一个Req是非常简单的，但所有的相关逻辑：如果产生网络错误（我不通、服务器不通），还有超时等等怎么办，于使会有一个`NetworkTansactionTask`来处理所有这些问题
+   2. 比如我发一个Req是非常简单的，但所有的相关逻辑：如果产生网络错误（我不通、服务器不通），还有超时等等怎么办，于是会有一个`NetworkTransactionTask`来处理所有这些问题
    3. 什么是Task的Intent
-      1. 包含两个东西:
-         1. Task的名称，所以Intent常常会作为句柄
-         2. Task的参数Dic，用于告诉这个Task必要的信息
-      2. *为什么这玩意也有个stack*
-         1. 用于一层一层返回
-            1. 奇怪，为什么不直接用Task的stack
+      1. 首先这个Intent只局限于UITask之中，通过一些适配器将Task的第一个参数——object转型为这个
+      2. 一共有三种UIIntent:
+         1. 基类，这里包含UITask的Name和mode
+            1. mode也定义于对应的UITask中，例如太阳系的UITask就有PlayMode、ViewMode和ShowMenuMode，用的应该还蛮多，所以从custom中抽出来了。
+         2. Custom的，另含一个`Dictionary<string, object>`，可扩展的参数。这个参数的key（string）常常在要启动的Task本身之中定义。
+         3. Returnable的，包含一个previewTask，即可以支持UITask之间的回退操作
+      3. *为什么在UIManager中intent有个stack*
+         1. 用于一层一层返回  
+            1. 奇怪，为什么不直接创建一个Task的stack
                1. 如果用Task的stack才奇怪呢，因为Task只是一个方法而不是数据
-2. UITask受UIManager控制
+2. `UITask`受UIManager控制
    1. 其中最关键的几个函数
       1. `StartUITask`
       2. `StartUITaskWithPrepare`
-         1. 比如显示仓库之前需要从服务器拉取数据，然后才能正常显示
-         2. 这个WithPrepare的Prepare方法由Task本身包含
-            1. `UITaskBase.PrepareForStartOrResume()`
-      3. 这里可以注册和登出Task，注册的Task保存在一个Dic种
+         1. 比如显示仓库之前需要*从服务器*拉取数据（而UpdateDataCache是从本地更新数据），然后才能正常显示
+         2. 那么这个函数首先需要重载一个`PrepareForStartOrResume`，这个东西在任何StartUITaskInternal之前调用。是个耗时操作
+         3. 其二，需要传递一个`onPrepareEnd()`，在前面这个Prepare完成之后，这个回调需要执行对应的结束逻辑
+         4. 所以Prepare对于这个Task来说是静态的，也就是说这个Task总是有一个准备过程，而OnPrepareEnd则是灵活的，在准备过程结束时可以做很多事情，比如其中有一个`StartSpaceStationUITaskWithPrepare`，`RebirthUITask`对`OnPrepareEnd`的调用是Stop Rebirth的Task，即在准备的过程中继续播放当前Task的动画之类。
+      3. 这里可以注册和登出Task，注册的Task保存在一个Dic中
          1. 注册主要是为了两个事：
             1. 处理Task之间的分组冲突
             2. 将Task缓存到list中用于复用
                1. Task的复用和Indent的复用好像不是一个层面上的，Indent的复用更多是一种逻辑，Task的复用更像是优化
-      
-3. **Task的Indent是什么**，难道是他的handle？但这里还有Name啊
-   1. 感觉是参数信息，所有的参数就往里扔就对了
-      1. 基类就俩string，一个taskName一个Mode，然而注意`UIIntentCustom`就对了，这里有一个`Dictionary<string, object>`
-         1. 至于UIIntentReturnable就是有一个在Task1启动Task2的时候把他的UIIntent给Task2即可，但注意待返回的那个intent  一定要在stack里面
-   2. 其中的string targetMode是啥玩意？
-      1. 字符串反正灵活使用吧
-4. UI的Register主要的作用是分组、冲突
-5. prepare、redirect什么的都是用来处理接续或者同步的Task逻辑才产生的
+3. UI的Register主要的作用是分组、冲突，最初是由`ProjectXUITaskRegister`调用的，这里硬写了所有Task的分组和名称
+4. prepare、redirect什么的都是用来处理接续或者同步的Task逻辑才产生的
 
 ### 涉及脚本
 1. `UIManager`：创建、开始、*返回*、停止、暂停Task
@@ -389,7 +411,7 @@
 
 ## UITask更新管线
 1. UITask所进行的几个步骤：逻辑数据获取，动态/静态资源的管理，界面刷新逻辑的控制；当然还有一些点击事件等等。
-2. 界面刷新过程/`UITask`的一次管线刷新过程：显示出来到动画停止
+2. 界面刷新过程/`UITask`的一次管线刷新过程：收集数据到动画停止
 3. 核心函数：
    1. 所有的`Task`启动、恢复、return等数据准备之后，都会调用同一个`UITaskBase.StartUpdatePipeLine()`函数
       1. 这个函数在`UITaskBase.OnStart()`中被调用，一般Task没有这个
@@ -397,13 +419,13 @@
       3. 准备资源 ``
       4. 界面刷新 `StartUpdateView()`
          1. 界面刷新甚至从整个数据开始拉取的时候一般会禁止UI交互
-         2. 如果是第一次打开，那么进行初始化工作
-         3. 然后进行UI的auto bind
-   2. `UITaskBase.StartUpdatePipeLine()`会调用`UpdateDataCache()`，会有疑问就是为啥这里也要处理data。
+         1. 然后进行UI的auto bind
+   3. `UITaskBase.StartUpdatePipeLine()`会调用`UpdateDataCache()`，会有疑问就是为啥这里也要处理data。
       1. 注意这里是DataCache，就是从PlayerCtx中拿到的数据可能并不符合显示需求，比如你可能需要对装备栏里的东西进行一个过滤，显示的信息是过滤后的信息
       2. 啊？艹之后就是静态资源和动态资源加载...哦资源不是数据
 4. `UITask`管理若干个`UILayer`以及所属的`UIController`，负责创建并显示`Layer`，同时通过`UIController`控制`Layer`的动画过程及图片文字显示等等。
-5. **事件处理函数在`InitAllUIControllers()`中绑定，可是我还没见过什么事件处理函数咧**
+5. **事件处理函数在`InitAllUIControllers()`中绑定，可是我还没见过什么事件处理函数咧** 
+   1. 狗屁，这里基类要根据子类设定的CtrlArrayDesc进行所有ctrl的创建和绑定，实际是creator的最初动力。
 6. 一个认识：这个框架之所以叫“框架”，并不是库的那种你拿过来随意组合调用的各种组件，而是给你规定了流程（*什么事情在什么时候做*），你要在这个流程中的固定位置填充你自己的逻辑。真的就是“别人调用你”
 7. 加载的资源分为动态资源和静态资源：
    1. 静态资源就是每一个Task拥有的Layer，会需要收集所有静态资源的描述
@@ -434,7 +456,7 @@
 8. Task就是工作单，Manager就是执行者，Layer就是资源和材料
 9.  UITaskPipelineCtx好像就是保存一些本次Update时候的状态 
    1.  但为啥要整出来这样一个叫管线现场的东西？为啥我不能直接写在这个Task里头啥的？
-       1.  哦，直接写在Task的可能包含了每一次的配置和跨越不同次更新的配置？
+       1.  哦，直接写在Task的可能会包含了每一次的配置和跨越不同次更新的配置，而UITaskPipelineCtx由基类保证在每次StartUpdateView()的尾巴上清空
        2.  *那么这个叫“上下文”或者“现场”似乎包含了一个模式或者说习俗，这个模式反映了怎么样的一个习俗呢？*
 
 ## 各种Manager
@@ -543,7 +565,7 @@
    ```
 2. **`UIProcess`又是什么玩意**
    1. 基类里面不持有任何的外部内容啊，那它怎么控制播放的？
-      1. 好像他的派生类`CommonUIStateEffectPorcess`是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
+      1. 注意，他的派生类`CommonUIStateEffectPorcess`是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
          1. 那么这个`CommonUIStateController`又是个啥
       2. 这里是一个这样的模式，`Start()`调用时设置一个state变量，然后调用`OnStart()`进行实际播放
          1. 原因估计是因为动画播放要跨帧，不是一下子播放完的（也不是啊，这个东西只有个Start和Stop）
@@ -555,7 +577,6 @@
    1. “Tween动画”是一个比较特殊的叫法。我估计可能是受到了Flash的影响。Tween其实是In-between的简写，指的是计算机自动插值补全关键帧Keyframe之间的动画。补全的动画既可以是动态Motion也可以是变形Morph。所以Tween其实只是一个补全的过程，更加合理的称呼应该是关键帧动画。[来源：知乎](https://www.zhihu.com/question/24496292/answer/28086971)
 5. `UIPlayingEffectInfo`又是什么玩意
    1. 这么几个东西就很相关：Effect、Process、CommonUIStateController
-   2. 
 6. !**命中不了断点**
    1. 2017有这个毛病，2019就么得了
 7. 那个`ItemListPool`到底是一个啥玩意
@@ -578,8 +599,8 @@
     2.  对，是的，但是原因不是那种多线程导致的变化，而是tick的每个Task之内会存在逻辑调用Task的注册和删除
 12. 为什么有了`TaskManager`还要有`UIManager`这种东西
     1.  `TaskManager`是`Tick`的发动机
-    2.  但是UIManager是UITask的图书馆，顺道还提供了服务
-    3.  两者都有注册的逻辑，只不过一个注册是为了处理1. UI组冲突（TaskRegDict*其实只注册了名字和Task的静态信息，而没有持有Task的实例*）2.（TaskList*Task缓存*）3. IntentStack（*UI返回*），另一个注册（*持有实例*）是为了处理具名Task唯一性/根据姓名调用（TaskRegDict）、Tick的逻辑（TaskList）
+    2.  但是`UIManager`是UITask的图书馆，顺道还提供了UI服务
+    3.  两者都有注册的逻辑，只不过一个注册是为了处理1. UI组冲突（TaskRegDict*其实只注册了名字和Task的静态信息（包括组id），而没有持有Task的实例*）2.（TaskList*Task缓存*）3. IntentStack（*UI返回*），另一个TaskManager注册（*持有实例*）是为了处理具名Task唯一性（也可以设置具名Task）/根据姓名调用（TaskRegDict）、Tick的逻辑（TaskList）
 13. 如何使用管道重定向函数？
     1.  子Task在resources加载完成后调用重定向函数，外部得到通知
     2.  等到外部认为所有子`Task`都准备完成之后任何时间，主动调用所有子`Task`的`ReturnFromRedirectPipLineOnLoadAllResCompleted()`
@@ -650,6 +671,7 @@
 4. LogicBlock = LB;
 5. 派生类将会调用基类的默认构造函数
    1. *所有参数都给定的构造函数*会被视作默认构造函数使用
+6. 这里面有一个模式，就是类似于`BundleData`和`BundleDataHelper`的关系，一个完全用于存储数据的class可以伴生一个用于操纵数据的Helper静态类
 
 
 # 重新列出提纲
@@ -682,10 +704,28 @@
    3. 静态资源相关函数——Need、Collect、StartLoad
    4. 动态资源相关函数——一样
       1. 动态资源和静态资源加载的区别：静态资源加载过程需要创建Layer。
-   5. 在哪里处理Layer的显示顺序的问题？
-6. UITaskPipelineCtx包含什么
-7. InitAllUIController的基类实现都干了点啥？
-8. 
+   5. 在哪里处理Layer的显示顺序的问题？对于Layer和Controller的处理在哪里进行
+6. `UITaskPipelineCtx`包含什么
+7. `InitAllUIController`的基类实现都干了点啥？
+8. ResourceManager
+   1. `LoadAsset()`和`StartLoadAssetCoroutine()`的区别
+   2. `AssetCacheItem`
+   3. `BundleData`、`SingleBundleData`内容，以及`BundleDataHelper`的核心数据成员
+      1. `BundleCacheItem`
+      2. `BundleLoadingCtx`的作用
+   4. `UnloadUnusedAssets()`和`UnloadAssets()`
+   5. Bundle的打包和更新逻辑
+9. Prefab
+   1.  Controller的自动绑定fields
+   2.  Creator的自动创建controller
+   3.  Container的自动创建子物体
+   4.  这三个是由低到高的
+10. Layer
+    1.  Layer的成员
+    2.  SceneManager的创建Layer的过程
+    3.  SceneManager的Create、Push、Pop
+    4.  SceneManager的UpdateStack处理三种layer的方式，以及更新方式
+    5.  
  
 ## 难点
 1. `Task`的启动函数、`UIManager`的启动函数、`StartUpdatePipeline`的逻辑
