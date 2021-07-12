@@ -456,13 +456,8 @@
 8. Task就是工作单，Manager就是执行者，Layer就是资源和材料
 9.  UITaskPipelineCtx好像就是保存一些本次Update时候的状态 
    1.  但为啥要整出来这样一个叫管线现场的东西？为啥我不能直接写在这个Task里头啥的？
-       1.  哦，直接写在Task的可能会包含了每一次的配置和跨越不同次更新的配置，而UITaskPipelineCtx由基类保证在每次StartUpdateView()的尾巴上清空
+       1.  哦，直接写在Task的可能会包含了每一次的配置和跨越不同次更新的配置，而`UITaskPipelineCtx`由基类保证在每次`StartUpdateView()`的尾巴上清空
        2.  *那么这个叫“上下文”或者“现场”似乎包含了一个模式或者说习俗，这个模式反映了怎么样的一个习俗呢？*
-
-## 各种Manager
-1. `SceneManager`用于处理Layer
-2. UIManger
-3. TaskManager
 
 ## PlayerCtx
 1. 工作：
@@ -563,6 +558,7 @@
             UpdateView();
             m_playingUpdateViewEffectList.Remove(null);
    ```
+   1. 实际就是UpdateView()之中可能调用PlayUIProcess，而播放到最后会把当前的Effect给Unreg掉，如果是UpdateView之中就播放完毕那么PlayerUIProcess()会调用unreg并激活PostUpdateView。然后在出来的时候再调用一次。
 2. **`UIProcess`又是什么玩意**
    1. 基类里面不持有任何的外部内容啊，那它怎么控制播放的？
       1. 注意，他的派生类`CommonUIStateEffectPorcess`是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
