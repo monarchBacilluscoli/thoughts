@@ -262,23 +262,28 @@
    1. 使用原因：至少2017版本中，如果Prefab A包含另一个Prefab B, 这个B的对象并不能跟随Prefab的变化而变化——此时Prefab和对象的联系已经断掉了
    2. 哦，通过只是脚本引用——而没有直接挂进去的prefab（避免断开联系而失效），来在创建时自动加载子prefab从而实现Prefab更新-Prefab的对象也更新的效果
       1. *奇怪的是，`PrefabResourceContainer`中并没有进行`Instantiate()`之类的啊？难道只是储存数据？*
-         1. 对，没错，就是他妈的存储Asset的路径数据，所有的方法也都只跟收集Asset有关
+         1. 对，没错，就是存储Asset的路径数据，所有的方法也都只跟收集Asset有关
+         2. 比如方法里面有：`TryGetAsset()`、`GetAsset()`、`GetAsync()`，以及reach一遍所有的assets、lazy加载等等
 4. 自动绑定的过程：
    1. 某个`Controller`根据写死的Prefab名在同级的Container（通过GetComponent绑定到字段）中搜索，找出待挂载的Asset路径
-   2. 将该Prefab instantiate出来并根据ctrl硬指定的某个父节点挂载，并调用静态函数`PrefabControllerCreator`的`AddControllerToGameObject()`对其进行初始化
-   3. 该函数将搜索手下所有的creator遍历并进行creator的脚本执行`CreateAllControllers()`
-   4. 该函数首先对所有creator的描述中的controller进行创建（从DNName中LoadType，并直接AddComponent()（非泛型））
-   5. 然后在所有ctrl创建好并存储在CTRLList之后对其进行遍历绑定其中的成员
+   2. 将该Prefab instantiate出来并根据ctrl硬指定的某个父节点挂载，并调用静态函数`PrefabControllerCreator`的`CreateAllControllers()`对其进行初始化
+      1. 该函数将搜索手下所有的creator，遍历并进行creator的脚本执行`CreateAllControllers()`
+         1. 该函数首先对CtrlDescList中的controller进行创建（从DNName中LoadType，并直接AddComponent()（非泛型，add这一步实际上是静态函数`AddControllerToGameObject()`））
+         2. 然后在所有ctrl创建好并存储在CTRLList之后对其进行遍历，将需要绑定的字段绑定到所有的ctrl中
+   3. 最终子物体一切完成（GameObject创建->Controller创建并挂载->字段绑定），父物体的字段可以手动绑定子物体的controller了
 5. 试试2019的Prefab之间的关系能不能OK
    1. 现在是OK的了，尝试也尝试通过了，[这里](https://zhuanlan.zhihu.com/p/49805994)也说明了在Unity2018.3中实现了这个功能
 
+#### PrefabController工作流程
+
+
 ## 场景管理
 1. `SceneManager`负责管理Layer
-   1. 创建Layer
+   1. <a name="createLayer">创建Layer</a>
       1. 创建Layer会首先在hierarchy中创建一个Dummy节点Name+`_LayerRoot`
       2. 加入到name->layer的字典
       3. 然后根据传入的资源路径*加载资源*
-      4. 资源加载完毕后会在`OnAssetLoadComplete()`中`Instantiate()`，并将之绑定到LayerRoot下
+      4. 资源加载完毕后会在`OnAssetLoadComplete()`中`Instantiate()`，并将之绑定到之前的LayerRoot下
       5. 这时Layer会**进入unused列表中**，所以不用设置脏标记
    2. 销毁Layer
       1. 在Loading中则等待Loading完成
@@ -392,16 +397,15 @@
       1. `StartUITask`
       2. `StartUITaskWithPrepare`
          1. 比如显示仓库之前需要*从服务器*拉取数据（而UpdateDataCache是从本地更新数据），然后才能正常显示
-         2. 那么这个函数首先需要重载一个`PrepareForStartOrResume`，这个东西在任何StartUITaskInternal之前调用。是个耗时操作
+         2. 那么这个函数首先需要重载一个`PrepareForStartOrResume()`，这个东西在任何`StartUITaskInternal()`之前调用。是个耗时操作
          3. 其二，需要传递一个`onPrepareEnd()`，在前面这个Prepare完成之后，这个回调需要执行对应的结束逻辑
          4. 所以Prepare对于这个Task来说是静态的，也就是说这个Task总是有一个准备过程，而OnPrepareEnd则是灵活的，在准备过程结束时可以做很多事情，比如其中有一个`StartSpaceStationUITaskWithPrepare`，`RebirthUITask`对`OnPrepareEnd`的调用是Stop Rebirth的Task，即在准备的过程中继续播放当前Task的动画之类。
       3. 这里可以注册和登出Task，注册的Task保存在一个Dic中
          1. 注册主要是为了两个事：
             1. 处理Task之间的分组冲突
             2. 将Task缓存到list中用于复用
-               1. Task的复用和Indent的复用好像不是一个层面上的，Indent的复用更多是一种逻辑，Task的复用更像是优化
-3. UI的Register主要的作用是分组、冲突，最初是由`ProjectXUITaskRegister`调用的，这里硬写了所有Task的分组和名称
-4. prepare、redirect什么的都是用来处理接续或者同步的Task逻辑才产生的
+               1. Task的复用和Indent的复用好像不是一个层面上的，Indent的复用更多是一种逻辑，Task的复用更像是优化（也不是，返回肯定是逻辑）
+3. UI的Register主要的作用是分组、冲突，最初是由`ProjectXUITaskRegister`调用的，这里硬写了所有Task的分组和名称，好像在EntryTask中被调用
 
 ### 涉及脚本
 1. `UIManager`：创建、开始、*返回*、停止、暂停Task
@@ -421,11 +425,11 @@
          1. 界面刷新甚至从整个数据开始拉取的时候一般会禁止UI交互
          1. 然后进行UI的auto bind
    3. `UITaskBase.StartUpdatePipeLine()`会调用`UpdateDataCache()`，会有疑问就是为啥这里也要处理data。
-      1. 注意这里是DataCache，就是从PlayerCtx中拿到的数据可能并不符合显示需求，比如你可能需要对装备栏里的东西进行一个过滤，显示的信息是过滤后的信息
+      1. 注意这里是DataCache，就是从PlayerCtx中拿到的数据可能并不符合显示需求，比如你可能需要对装备栏里的东西进行一个过滤，显示的信息是过滤后的信息。而不是从服务器上拉取
       2. 啊？艹之后就是静态资源和动态资源加载...哦资源不是数据
 4. `UITask`管理若干个`UILayer`以及所属的`UIController`，负责创建并显示`Layer`，同时通过`UIController`控制`Layer`的动画过程及图片文字显示等等。
 5. **事件处理函数在`InitAllUIControllers()`中绑定，可是我还没见过什么事件处理函数咧** 
-   1. 狗屁，这里基类要根据子类设定的CtrlArrayDesc进行所有ctrl的创建和绑定，实际是creator的最初动力。
+   1. 狗屁，这里基类要根据子类设定的CtrlArrayDesc进行所有ctrl的创建和绑定，实际是creator的最初动力（但是这里不进行Layer的创建，那个是在staticResource中调用[createLayer](#场景管理)创建的）。而子类要在基类根据desc完成创建及绑定事务后将创建好的控制器赋值给自己的field
 6. 一个认识：这个框架之所以叫“框架”，并不是库的那种你拿过来随意组合调用的各种组件，而是给你规定了流程（*什么事情在什么时候做*），你要在这个流程中的固定位置填充你自己的逻辑。真的就是“别人调用你”
 7. 加载的资源分为动态资源和静态资源：
    1. 静态资源就是每一个Task拥有的Layer，会需要收集所有静态资源的描述
@@ -442,7 +446,7 @@
             }
          ```
       2.  `UICtrlDescArray`记录了:
-        1.  Controller绑到的layer的名称
+        1.  `Controller`绑到的layer的名称
         2.  绑定路径是什么
         3.  绑定的类型（就是那个Controller）是什么
         4.  类型的名称
@@ -452,7 +456,7 @@
       2. 检查所有的资源描述是否合理
       3. 筛选掉已经加载过的资源，剩下需要加载的资源
       4. 加载资源
-      5. 调用`OnLoadAllResourcesEnd()`
+      5. 结束回调，根据情况调用`OnLoadAllResourcesEnd()`
 8. Task就是工作单，Manager就是执行者，Layer就是资源和材料
 9.  UITaskPipelineCtx好像就是保存一些本次Update时候的状态 
    1.  但为啥要整出来这样一个叫管线现场的东西？为啥我不能直接写在这个Task里头啥的？
@@ -461,10 +465,10 @@
 
 ## PlayerCtx
 1. 工作：
-   1. 首先负责服务器事件处理的那个大Switch
-      1. 以及以上所有内容的**数据部分**的回调处理，在这之后会派发给UI做UI处理
-         1. 动力源是Client的Tick()
-   2. 
+   1. 首先被动地负责服务器事件处理的那个大Switch
+      1. 以及以上所有内容的**数据部分**的回调处理，即调用事件，可派发给事件监听者（比如UI）处理
+         1. 动力源是`Client`的`Tick()`
+   2. 主动的事情就是类似登陆，负责调用持有的`NetworkClient`发送登陆请求，并和上面一样Tick之用于等待`ServerMessage`，当message等到时激活对应的Ack
 
 ## 实现的三个文件
 
@@ -517,10 +521,31 @@
 
 ### NetworkTransaction
 1. 默认构造函数在进行Task的过程中会Block住Input
+#### 流程
+1. 构造函数
+   1. 基类设定超时、禁止UI、是否自动重发
+   2. 子类设定业务参数
+2. `OnStart()`中注册监听事件，blockUI，发起网络通讯
+3. `OnTick()`中启动转菊花、处理超时`OnTimeOut()`
+4. `OnStop()`中注销监听事件，unblock，隐藏菊花
+#### 关键实现点
+   1. 构造函数肯定是要做的，以及相关的数据存储字段（需要包含发送的数据和应答数据）
+   2. 由于监听事件需要自己实现，所以注册和解除注册事件也要实现
+#### 基类向`PlayerContext`注册的几个处理网络的关键事件
+   1. 服务器断开
+   2. 网络错误
+      1. 以上两个调用同一个事件处理函数`OnNetworkError()`
+         1. 如果在一开始设置了[重发](#流程)，则调用`EventReloginBySession`，该Event在之前已经被`ProjectXGameEntryUITask`注册了`ReLoginBySession()`事件处理函数
+            1. 这个函数启动重登录Task：`ReloginUITask`，猜测应该是回到启动界面但是不需要登陆框直接启动登陆
+   3. 数据不同步
+      1. 直接停止`Task`不再tick
+      2. 并且调用`EventReturnToLoginUI`，该Event在之前已经被`ProjectXGameEntryUITask`注册了`ReturnToLoginUI()`事件处理函数
+         1. 这个函数启动登陆Task：`LoginUITask`，猜测应该是回到启动界面并使用登陆框进行登陆
+   4. **为啥这三种情况的处理方式不同呢？**
 
 ### 实现的功能及涉及
 1. 点开
-   1. 主要还是把父节点的StartUpdatePipeline()里面所需的调用的补齐就行了
+   1. 主要还是把父节点的`StartUpdatePipeline()`里面所需的调用的补齐就行了
 2. 滚动
    1. 需求：使用滚轮对物品列表进行上下滚动
    2. 那个关掉会导致滚动失效的脚本里跟Update有关的函数注释掉没有停止他的滚动，所以是不是一种？事件？
@@ -545,20 +570,16 @@
          3. List的Event被Task注册了自己的Onclick——更新信息显示
 #### 所有实现的功能在流程中的体现
 1. 知道了所有这些东西在空间上的位置，但是在流程上的关系还并不清楚
-   1. GameEntry也是一个Task而已，但是这个Task怎么启动了别的Task呢？
-
-#### 都需要有的东西
-1. 动画播放，啊！——动画如何播放？起码如何调用？
-   1. 就在那个子类实现的`UpdateView()`中
+   1. GameEntry也是一个Task而已，但是这个Task怎么启动了别的Task呢？自然是通过UIManager启动的啊~或者通过`new`启动的`NetworkTransactionTask`
 
 ### 问题
 1. 这块还不是很懂
    ```CSharp
-            m_playingUpdateViewEffectList.Add(null);
-            UpdateView();
-            m_playingUpdateViewEffectList.Remove(null);
+      m_playingUpdateViewEffectList.Add(null);
+      UpdateView();
+      m_playingUpdateViewEffectList.Remove(null);
    ```
-   1. 实际就是UpdateView()之中可能调用PlayUIProcess，而播放到最后会把当前的Effect给Unreg掉，如果是UpdateView之中就播放完毕那么PlayerUIProcess()会调用unreg并激活PostUpdateView。然后在出来的时候再调用一次。
+   1. 实际就是UpdateView()之中可能调用`PlayUIProcess`，而播放到最后会把当前的Effect给Unreg掉，如果是UpdateView之中就播放完毕那么PlayerUIProcess()会调用unreg并激活PostUpdateView。然后在出来的时候再调用一次。所以这里Add(null)的作用是避免调用两次
 2. **`UIProcess`又是什么玩意**
    1. 基类里面不持有任何的外部内容啊，那它怎么控制播放的？
       1. 注意，他的派生类`CommonUIStateEffectPorcess`是持有一个`CommonUIStateController`的，然后委托给Controller来进行实际动画的播放
@@ -569,7 +590,7 @@
 3. `CommonUIStateController`好像是一组结构确定了的动画控制器之类的东西
    1. 能查找Style，显示这个style的对象，设置ColorSet，播放**Tween**
    2. 真的就是实际播放
-4. Tween是什么？
+4. `Tween`是什么？
    1. “Tween动画”是一个比较特殊的叫法。我估计可能是受到了Flash的影响。Tween其实是In-between的简写，指的是计算机自动插值补全关键帧Keyframe之间的动画。补全的动画既可以是动态Motion也可以是变形Morph。所以Tween其实只是一个补全的过程，更加合理的称呼应该是关键帧动画。[来源：知乎](https://www.zhihu.com/question/24496292/answer/28086971)
 5. `UIPlayingEffectInfo`又是什么玩意
    1. 这么几个东西就很相关：Effect、Process、CommonUIStateController
@@ -579,7 +600,8 @@
    1. 为啥进出Pool除了个`SetActive()`基本没有Refresh之类的操作？，这真的可行吗？
 8. 调用父类的OnXXX函数都有啥规范吗？
    1. 难道是进入的先调父类？离开的先调子类？
-9. 来自ItemList控制器中的迷惑：按说`UpdateList()`方法中应该有用`m_cachedItemList`去foreach更新包含的Item的图标啊啥的，但是这里调用的所有函数都没用这玩意
+   2. 答案是没有
+9. 来自`ItemList`控制器中的迷惑：按说`UpdateList()`方法中应该有用`m_cachedItemList`去foreach更新包含的Item的图标啊啥的，但是这里调用的所有函数都没用这玩意
    1.  基于“肯定有个地方这么用了”的认知，那干脆看看这个m_cachedItemList到底都在哪里用了
        1.  查找后发现，有个函数叫`OnItemStoreUIItemFill()`的，其中根据传进来的Item的index以及m_cachedItemList更新了icon。
        2.  具体查查是被注册到Item控制器的`EventOnUIItemNeedFill`事件上了
@@ -592,16 +614,17 @@
     1.  哦，好像是因为这里并不仅仅是更新Icon本身的东西，而是上头还有一些Sprite.
 11. 为啥`TaskManager`的`Tick()`要把List复制一遍？
     1.  难道是怕同时加入新的减去旧的啥的？
-    2.  对，是的，但是原因不是那种多线程导致的变化，而是tick的每个Task之内会存在逻辑调用Task的注册和删除
+    2.  对，是的，但是原因不是那种多线程导致的变化，而是tick的每个**Task之内会存在逻辑调用Task的注册和删除**
 12. 为什么有了`TaskManager`还要有`UIManager`这种东西
     1.  `TaskManager`是`Tick`的发动机
     2.  但是`UIManager`是UITask的图书馆，顺道还提供了UI服务
     3.  两者都有注册的逻辑，只不过一个注册是为了处理1. UI组冲突（TaskRegDict*其实只注册了名字和Task的静态信息（包括组id），而没有持有Task的实例*）2.（TaskList*Task缓存*）3. IntentStack（*UI返回*），另一个TaskManager注册（*持有实例*）是为了处理具名Task唯一性（也可以设置具名Task）/根据姓名调用（TaskRegDict）、Tick的逻辑（TaskList）
+    4.  TaskManager存在感稍弱，通常对于一过性的Task而言是透明的，因为Task会在启动的时候自己注册自己；而UIManger在做UI的时候就非常之关键了
 13. 如何使用管道重定向函数？
     1.  子Task在resources加载完成后调用重定向函数，外部得到通知
     2.  等到外部认为所有子`Task`都准备完成之后任何时间，主动调用所有子`Task`的`ReturnFromRedirectPipLineOnLoadAllResCompleted()`
         1.  例如某个使用了重定向逻辑的Task就保存了所有三个子Task的资源加载完成的逻辑作为成员变量，每次使用这个重定向函数判断是不是成功了，如果成功则Resume播放以另外三个成员变量保存的这些Task
-14. InitAllControllers在哪里被调用？
+14. `InitAllControllers`在哪里被调用？
     1.  在所有资源都被加载完成的回调中被调用，或者在`ReturnFromRedirectPipelineOnXXX()`被调用
 15. Task和UITask的区别
     1.  就看他们俩是干啥的把：
@@ -613,9 +636,10 @@
                1. 就是用来链式返回之前打开的窗口，例如`ReturnUITaskToLast()`就可以直接返回至栈顶的第一个intent
                2. `StartUITask()`其中有一个清空intent栈的参数，是用于返回非常底层的task从而不需要任何栈的那种任务。
             3. UI的输入锁
-        3.  最明显的差异就是使用UITask不要像NetTask一样自己new一个task出来并Start了，而是由UIManager进行符合UI逻辑的启动/重入/更新操作。
-16. DataContainer到底是为上层服务的还是为下层服务的？
-17. LogicBlock的Client和Server的划分是为了什么？
+        3.  最明显的使用差异就是使用UITask不要像NetTask一样自己new一个task出来并Start了，而是由UIManager进行符合UI逻辑的启动/重入/更新操作。
+16. `DataContainer`到底是为上层服务的还是为下层服务（优化）的？
+    1. 确实是为上层
+17. `LogicBlock`的`Client`和`Server`的划分是为了什么？
     1.  似乎Base只是为了代码重用，最基本的修改功能、记录日志、遍历等等都有了，以及服务器和客户端完全相同的DataContainer
     2.  但是Client需要一些根据info来更新、Filter的逻辑（向上(客户端)支持），需要继承出来
 18. 为什么Client的里面有一些并非是根据UpdateInfo而是直接根据id什么删除物品的代码？为什么客户端可以直接在本地修改数据？
@@ -623,7 +647,7 @@
 19. 使用物品时的脏标记是用来干啥的？
     1.  计算仓库容量，想必有时的道具使用十分频繁，而在不显示容量的时候根本不需要增加这种耗时的操作，所以加入脏标记——在用的时候才更新
 20. 所以`DataSection`到底在什么地方发挥作用了？光看ItemStore这种新建item、根据index得到DS根本看不出个屁
-21. StartUITask的参数都是干啥的？
+21. `StartUITask()`的参数都是干啥的？
     1.  句柄和意图intent
     2.  资源加载完成回调（重定向的意思是这个回调被调用的时候整个流程会暂停，而不是仅仅通知并继续进行）
     3.  Pipeline完成回调
@@ -637,10 +661,10 @@
 23. 管线劫持类型的参数是什么？裸Action
 24. WithPrepare的区别是啥
     1.  WithPrepare的意图是在某个Task本身存在在data、resource、view这些pipeline环节之前的较为耗时的准备动作或者
-25. StartUpdatePipeline中的`canBeSkip`在哪里用到？如何判断是不是canBeSkip
+25. `StartUpdatePipeline()`中的`canBeSkip`在哪里用到？如何判断是不是canBeSkip
     1. 给了个默认实现，默认实现的逻辑很有趣：如果当前时间小于上次启动Pipeline时间，则跳过hhh
     2. 并且没有别个重写了这玩意儿  
-26. `StartUpdatePipeline`和`StartUITask`还有Task的`Start`的参数和内部逻辑差异在哪里
+26. `StartUpdatePipeline()`和`StartUITask()`还有Task的`Start()`的参数和内部逻辑差异在哪里
 27. m_playingUpdateViewEffectList是干啥用的
     1.  听说有他的话则是一个异步过程，等count=0这个Task才会被结束
     2.  注意这段代码：
@@ -651,13 +675,25 @@
                // 之后会查看这个数组是否为空，从而执行PostPipelineEnd()
           ```
          所以如果这个Effect只播放一帧，那么在`UpdateView()`之中Process就会直接播放完毕，并调用Post，然后出来之后再判空一次，Post就会播放第二次。而UpdateView时Add的null就会保证UpdateView的那次不会被调用
-28. UITaskBase中已经加载的层判断方式有点迷惑，因为m_index确实有点奇怪，并且好像没有被使用
+28. `UITaskBase`中已经加载的层判断方式有点迷惑，因为m_index确实有点奇怪，并且好像没有被使用
 29. 主asset直接使用Path缓存，而subasset需要拼接完整路径就有点迷惑
     1.  并且这里似乎只有fbx和png需要特殊的处理，就多少有点不能理解
-30. 
+30. `UpdateView()`之后还干了什么跟`StartUpdatePipeline()`有关的很关键的事情？
+    ```CSharp
+         protected virtual void PostUpdateView()
+         {
+           if (State == TaskState.Running && m_piplineQueue.Count != 0)
+           {
+              var item = m_piplineQueue[0];
+              m_piplineQueue.RemoveAt(0);
+              StartUpdatePipeLine(item.m_intent, item.m_onlyUpdateView, item.m_canBeSkip);
+           }
+         }
+    ```
+31. 如果栈里是123，那么我想从当前3回到1如何处理2？ReturnUITask可以做这个事吗？
 
 ### 想法
-1. `ItemStoreUITask.IsNeedUpdateDataCache()`这个函数做的逻辑非常之不咋地，按说IsXXX应该完全没有副作用的艹。
+1. `ItemStoreUITask.IsNeedUpdateDataCache()`这个函数非常之不舒服，按说IsXXX应该完全没有副作用的艹。
 2. Task中有个`OnItemListUITabChanged()`这里负责更新filter，然后他肯定是监听`ListController`中的EventOnToggleChanged嘛。从这里可以看出ListController只是提供了更新、缓存等等底层功能的接口，主要的协同逻辑（根据按下的toggle更新filter、更新缓存以及最后的整个管线更新）是在Task里面定义的。
 3. 妈的学到了，事件的优势：
    1. 我本来计划的我的实现将在实现了核心逻辑之后，把以前所有的外部调用这个类的接口copy过来重写一遍。
@@ -726,3 +762,90 @@
 ## 难点
 1. `Task`的启动函数、`UIManager`的启动函数、`StartUpdatePipeline`的逻辑
 2. `UIIntent`和`UITaskPipelineCtx`
+
+## 错题
+1. `ConfigData`表的结构是怎样的
+   1. Enum表：
+      1. 按行：
+         1. 前五行元数据：
+            1. 表的文字描述
+            2. 表的类型 + 表的英文名称
+            3. 输出标记：客户端、服务器、全、无
+            4. 每列的英文列名
+            5. 中文列描述
+         2. 从第6行开始数据条目
+      2. 按列：
+         1. ID
+         2. 枚举项名称
+         3. 枚举项描述
+   2. Data表
+      1. 前12行元数据
+         1. 表的文字说明
+         2. 表的类型 + 表的英文名称
+         3. 输出标记
+         4. 变量名
+         5. 中文变量描述
+         6. 数据类型——就地类型List则需要指定就地类型的类型名————
+         7. List元素的名称/List元素的各字段名称
+         8. List元素的中文描述/List元素的各字段中文描述
+         9. List元素的类型/List元素的各字段类型
+         10. List元素默认值/List元素各字段的默认值————
+         11. 默认值/枚举值的外键关联
+         12. 本列的多语言配置（多语言ID配置列的名称 + 导出到的多语言表名）
+     1.  第13行开始数据条目
+2. Bundle加载过程中，从加载现场的创建（或跳过）到实际开始下载之间做了什么？
+   1. 先完成当前bundle所依赖的bundle的加载，然后才会加载当前bundle
+3. `PushLayer()`具体做了什么
+   1. check是否unused，如果是才继续进行，否则返回
+   2. layer移到栈中
+   3. 状态设置为InStack
+   4. 根据layer类型，将之加入默认的root节点
+   5. 激活layer对象->解决调用该对象上的Controller存在的问题
+   6. 设置脏标记
+4. `UITask`的`OnResume()`流程？（**可能跟具体的OnResume实现有关系/和OnStart()的差异，在什么时候会Pause呢？**）
+   1. 设置管线场景的isResume为true，以备之后流程使用。例如ItemStore如果是从Pause状态（Pause会禁用界面）恢复，所以在Resume的UpdateView中需要播放显示界面的动画所以需要这一状态check。而对于点击物品事件等不Pause Task的行为，则无需播放动画。
+   2. 另外，Task本身并不提供isResume这种状态及其记录，所以在UITask的OnResume中处理。
+5. `StartUpdatePipeline()`管线内部对`intent`进行了什么处理？
+   1. 如果当前还有管线在运行并且本次进入队列，则需要把此次管线更新请求即所有的参数包括intent传入等待队列并返回。
+   2. 否则，判断管线是否跳过的函数实现可能需要当前intent作为依据。
+   3. 如果管线跳过，那么如果intent发生了改变，则需要设置mode，进行OnIntentChange下的清空流程，并且将此次intent记录在Task的成员intent中，以备之后流程使用。
+6. 所有`Task`需要的静态资源都会在加载静态资源时被加载吗？——`Layer`的延时创建机制
+   1. 在LayerDesc中具有m_isLazyLoad=true的资源不会在UITask基类的`CollectAllStaticResDescForLoad()`被加入待加载资源列表，从而就不会被之后的加载过程加载
+   2. 根据项目中的使用案例，ShipHangarUITask在`CollectAllStaticResDescForLoad()`中根据当前显示mode而将对应的lazy load资源加入待加载列表并进行加载
+7. 所有资源都加载完成并处理完管线劫持后调用的除`InitAllControllers()`的函数是什么？
+   1. 另一个是`InitLayerStateOnLoadAllResCompleted()`，其基本任务是在Layer创建完毕之后需要将之按照本task的需求将其依序push入栈，否则layer将处于unused栈中。
+8. 调用`InitAllUIControllers()`和`InitLayerStateOnLoadAllResCompleted()`的条件如何？
+   1. m_currPipeLineCtx.m_layerLoadedInPipe为true的时候。即在基本UITask流程中，如果本次管线加载了新的3D layer或者UI layer，则该项为true，意味着需要进行新创建的layer的controller的初始化。
+9.  `UpdateView()`之后的流程都做了什么
+   1.  检测m_playingUpdateViewEffectList列表，为空则进行管线收尾，否则直接返回
+   2.  收尾工作：
+       1.  view更新到管线现场清空之间的流程
+       2.  发出一个该Task update更新完毕的通知
+       3.  清空管线现场
+       4.  允许UI输入
+       5.  如果有传入的OnPipelineEnd则调用
+       6.  如果等待队列不为空，进行下一次管线更新
+10. `PrefabResourceContainer`如何使用，即Demo实现中是如何从Container中获取资源的？
+    1.  是从其`GetAsset(string name)`函数中根据名称获取的资源。
+    2.  container是通过遍历存储AssetCacheItem的List获取到的该资源。
+    3.  这个List是在编辑器之中手动设置并拖拽资源形成的，其元素AssetCacheItem的主要成员是名称和GameObject本身。在Editor模式下这里的GameObject是随时可用的；但在真机状态下则资源一般需要通过Bundle加载来获取，并非自动处于可用状态，所以需要额外的处理。
+    4.  该处理在ResourceManager加载到挂有container脚本的资源时发生，即当检测到存在container脚本，会调用container脚本的ReachAllAsset函数，该函数会遍历。AssetList，借助ResourceManager加载并缓存其中描述的对象到另一个List中。在真机环境需要获取container中的某资源时，则会在后者中搜索并返回。
+
+## 现象及心得
+1. 对于Task部分的准备不足，对于周边的逻辑会比要求更多清楚了一点
+   1. 对于细节把控还是比较差，可能因为没有耐心去仔细地思考看似已经掌握的知识。而**更喜欢新鲜的刺激**。
+   2. 从笔记的编写过程也能略见一斑，不愿在已有的基础上巩固，而是更愿start from scratch
+2. 准备过程中缺乏计划性，而在受到别人影响的时候容易焦虑
+   1. 容易焦躁也可能正是前面无法在原有基础上耐心巩固的原因，这一点在缺乏计划性的情况下更为显著。
+3. 解决方案：
+   1. 进行计划，不仅包含todo内容，同时要**包含完成任务的时间估计**。
+   2. 这样的训练会让我更加清楚自己的能力（对时间的预期与把控），并在此基础上可以看到有效的提升。
+4. 此外，在YL这里相对DR会更加紧张
+   1. 这个紧张是多方面的：
+      1. 对于自己不如预期的担心
+      2. 对于对方的反馈会产生明显的负面解读
+      3. 掌握并不牢靠
+   2. 虽然提升掌握的牢靠程度是消除紧张的关键，但是如何在相同的技能条件下，调整为更为舒适，适宜深度思考和回忆的心态无论对感受还是发挥都是有益的。
+   3. 此外，他似乎唤起了我对某种**特定类型的年长人士的感受的条件反射**
+5. 有一些答案感觉是对的，比如加载完所有资源后除了InitControllers还做了什么，当时脑子里想的是创建Layer后进入的是unused，还没push，然后就InitController了，那么这个层是在哪里push的呢？另外什么情况下不会InitAllControllers，那么就是没有Layer被处理，我把它大而化之成为静态资源了
+
