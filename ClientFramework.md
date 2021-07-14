@@ -796,9 +796,9 @@
 2. Bundle加载过程中，从加载现场的创建（或跳过）到实际开始下载之间做了什么？
    1. 先完成当前bundle所依赖的bundle的加载，然后才会加载当前bundle
 3. `PushLayer()`具体做了什么
-   1. check是否unused，如果是才继续进行，否则返回
+   1. **check是否instack，如果是才继续进行，否则返回**
    2. layer移到栈中
-   3. 状态设置为InStack
+   3. **状态设置为InStack**
    4. 根据layer类型，将之加入默认的root节点
    5. 激活layer对象->解决调用该对象上的Controller存在的问题
    6. 设置脏标记
@@ -822,9 +822,9 @@
        1.  view更新到管线现场清空之间的流程
        2.  发出一个该Task update更新完毕的通知
        3.  清空管线现场
-       4.  允许UI输入
+       4.  **允许UI输入**
        5.  如果有传入的OnPipelineEnd则调用
-       6.  如果等待队列不为空，进行下一次管线更新
+       6.  **如果等待队列不为空，进行下一次管线更新**
 10. `PrefabResourceContainer`如何使用，即Demo实现中是如何从Container中获取资源的？
     1.  是从其`GetAsset(string name)`函数中根据名称获取的资源。
     2.  container是通过遍历存储AssetCacheItem的List获取到的该资源。
