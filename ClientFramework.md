@@ -764,7 +764,7 @@
 2. `UIIntent`和`UITaskPipelineCtx`
 
 ## 错题
-1. `ConfigData`表的结构是怎样的
+1. ConfigData表的结构是怎样的
    1. Enum表：
       1. 按行：
          1. 前五行元数据：
@@ -793,40 +793,40 @@
          11. 默认值/枚举值的外键关联
          12. 本列的多语言配置（多语言ID配置列的名称 + 导出到的多语言表名）
      1.  第13行开始数据条目
-2. Bundle加载过程中，从加载现场的创建（或跳过）到实际开始下载之间做了什么？
+2. bundle加载过程中，从加载现场的创建（或跳过）到实际开始下载之间做了什么？
    1. 先完成当前bundle所依赖的bundle的加载，然后才会加载当前bundle
-3. `PushLayer()`具体做了什么
-   1. **check是否instack，如果是才继续进行，否则返回**
+3. PushLayer()具体做了什么？
+   1. 检查layer状态是否为InStack，如果是才继续进行，否则返回
    2. layer移到栈中
-   3. **状态设置为InStack**
+   3. 状态设置为InStack
    4. 根据layer类型，将之加入默认的root节点
    5. 激活layer对象->解决调用该对象上的Controller存在的问题
    6. 设置脏标记
-4. `UITask`的`OnResume()`流程？（**可能跟具体的OnResume实现有关系/和OnStart()的差异，在什么时候会Pause呢？**）
+4. UITask的OnResume()流程如何？
    1. 设置管线场景的isResume为true，以备之后流程使用。例如ItemStore如果是从Pause状态（Pause会禁用界面）恢复，所以在Resume的UpdateView中需要播放显示界面的动画所以需要这一状态check。而对于点击物品事件等不Pause Task的行为，则无需播放动画。
    2. 另外，Task本身并不提供isResume这种状态及其记录，所以在UITask的OnResume中处理。
-5. `StartUpdatePipeline()`管线内部对`intent`进行了什么处理？
-   1. 如果当前还有管线在运行并且本次进入队列，则需要把此次管线更新请求即所有的参数包括intent传入等待队列并返回。
-   2. 否则，判断管线是否跳过的函数实现可能需要当前intent作为依据。
-   3. 如果管线跳过，那么如果intent发生了改变，则需要设置mode，进行OnIntentChange下的清空流程，并且将此次intent记录在Task的成员intent中，以备之后流程使用。
-6. 所有`Task`需要的静态资源都会在加载静态资源时被加载吗？——`Layer`的延时创建机制
-   1. 在LayerDesc中具有m_isLazyLoad=true的资源不会在UITask基类的`CollectAllStaticResDescForLoad()`被加入待加载资源列表，从而就不会被之后的加载过程加载
-   2. 根据项目中的使用案例，ShipHangarUITask在`CollectAllStaticResDescForLoad()`中根据当前显示mode而将对应的lazy load资源加入待加载列表并进行加载
-7. 所有资源都加载完成并处理完管线劫持后调用的除`InitAllControllers()`的函数是什么？
-   1. 另一个是`InitLayerStateOnLoadAllResCompleted()`，其基本任务是在Layer创建完毕之后需要将之按照本task的需求将其依序push入栈，否则layer将处于unused栈中。
-8. 调用`InitAllUIControllers()`和`InitLayerStateOnLoadAllResCompleted()`的条件如何？
-   1. m_currPipeLineCtx.m_layerLoadedInPipe为true的时候。即在基本UITask流程中，如果本次管线加载了新的3D layer或者UI layer，则该项为true，意味着需要进行新创建的layer的controller的初始化。
-9.  `UpdateView()`之后的流程都做了什么
-   1.  检测m_playingUpdateViewEffectList列表，为空则进行管线收尾，否则直接返回
-   2.  收尾工作：
+5. StartUpdatePipeline()管线内部对intent进行了什么处理？
+   1. 如果当前还有管线在运行并且本次进入队列，则需要把此次管线更新请求即所有的参数包括intent传入等待队列并返回
+   2. 否则，判断管线是否跳过的函数实现可能需要当前intent作为依据
+   3. 如果管线跳过，那么如果intent发生了改变，则需要设置mode，进行OnIntentChange下的清空流程，并且将此次intent记录在Task的成员intent中，以备之后流程使用
+6. 所有Task需要的静态资源都会在加载静态资源时被加载吗？——Layer的延时创建机制
+   1. 在LayerDesc中具有m_isLazyLoad=true的资源不会在UITask基类的CollectAllStaticResDescForLoad()被加入待加载资源列表，从而就不会被之后的加载过程加载
+   2. 根据项目中的使用案例，ShipHangarUITask在CollectAllStaticResDescForLoad()中根据当前显示mode而将对应的lazy load资源加入待加载列表并进行加载
+7. 所有资源都加载完成并处理完管线劫持后调用的除InitAllControllers()的函数是什么？
+   1. 另一个是InitLayerStateOnLoadAllResCompleted()，其基本任务是在Layer创建完毕之后需要将之按照本task的需求将其依序push入栈，否则layer将处于unused栈中
+8. 调用InitAllUIControllers()和InitLayerStateOnLoadAllResCompleted()的条件如何？
+   1. m_currPipeLineCtx.m_layerLoadedInPipe为true的时候。即在基本UITask流程中，如果本次管线加载了新的3D layer或者UI layer，则该项为true，意味着需要进行新创建的layer的controller的初始化
+9. UpdateView()之后的流程都做了什么
+   2.  检测m_playingUpdateViewEffectList列表，为空则进行管线收尾，否则直接返回
+   3.  收尾工作：
        1.  view更新到管线现场清空之间的流程
        2.  发出一个该Task update更新完毕的通知
        3.  清空管线现场
-       4.  **允许UI输入**
+       4.  允许UI输入
        5.  如果有传入的OnPipelineEnd则调用
-       6.  **如果等待队列不为空，进行下一次管线更新**
-10. `PrefabResourceContainer`如何使用，即Demo实现中是如何从Container中获取资源的？
-    1.  是从其`GetAsset(string name)`函数中根据名称获取的资源。
+       6.  如果等待队列不为空，进行下一次管线更新
+10. PrefabResourceContainer如何使用，即Demo实现中是如何从Container中获取资源的？
+    1.  是从其GetAsset(string name)函数中根据名称获取的资源。
     2.  container是通过遍历存储AssetCacheItem的List获取到的该资源。
     3.  这个List是在编辑器之中手动设置并拖拽资源形成的，其元素AssetCacheItem的主要成员是名称和GameObject本身。在Editor模式下这里的GameObject是随时可用的；但在真机状态下则资源一般需要通过Bundle加载来获取，并非自动处于可用状态，所以需要额外的处理。
     4.  该处理在ResourceManager加载到挂有container脚本的资源时发生，即当检测到存在container脚本，会调用container脚本的ReachAllAsset函数，该函数会遍历。AssetList，借助ResourceManager加载并缓存其中描述的对象到另一个List中。在真机环境需要获取container中的某资源时，则会在后者中搜索并返回。
