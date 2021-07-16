@@ -573,3 +573,45 @@
       2. 静态类，将当前场景的所有物体的数据存储到静态类中，然后在新场景开始时重新创建
    3. 存档到文件：
       1. 将相关数据序列化到存档文件并在新场景中重新加载
+
+# Unity Manual
+
+## User Interface
+1. 看样子Unity有三种UI套件：
+   * UIElement：Editor用的
+   * Unity UI：In Game用的
+   * Immediate Mode UI：`OnGUI()`那些，code-driven，用于游戏内debugging，**好像也能对inspector进行编辑**？
+
+### Canvas
+1. 这个玩意的边界显示是为了即使在没有打开Game View的时候也能进行编辑
+2. 使用`EventSystem` object去处理消息（所以`EventSystem`和UI能够联合的机制是什么？）
+3. UI元素的遮挡关系取决于hierarchy中出现的顺序，越往下越前。当然可以通过SetSibling系列函数去改变。
+4. 三种Render Mode分别是Screen Space - Overlay/Camera和WorldSpace，分别意味着各种变换/后处理等跟着分辨率走/跟着相机走/谁也不跟
+
+### Basic Layout
+
+![](./pic/GUI_Pivot_Local_Buttons.png)
+
+1. pivot显示出来后旋转则以它为圆心
+
+![](./pic/UI_RectTransform.png)
+
+2. Rect Transform可以分为两个部分：
+   1. 和原始Transform一致的部分：Pos、Rot、Scale
+   2. 进阶的比较好理解的部分：Width、Height
+   3. 进阶的新概念：Anchors和Pivot
+3. Resizing不会改变子物体的比例，而Scaling则上下一起
+#### Pivot
+设置了Pivot并在pivot状态之中，Rot、Scaling、Resizing操作都会以Pivot为圆心
+1. Rot好理解，后两者意为向Pivot所在位置缩放，也就是左边和右边边界的缩放速度是不同的。比如pivot偏右，则右侧的边界向pivot缩进的速度会慢一些，而左侧的边界向pivot缩进会快一些。
+#### Anchors
+不同于Pivot是在自己的缩放中起作用，Anchors则可以定义具有`RectTransform`的父物体缩放对子物体产生的影响行为。
+1. 影响产生的逻辑是：
+   1. 每个Anchors角标和子物体的对应Rect角点的距离保持不变。
+   2. Anchors的位置值是“在父物体的位置比例来定义”
+2. Anchors在inspector中的设置逻辑是Min代表左下角的坐标，Max代表右上角的坐标。
+3. 并且这里有特殊的对Pos的影响情形：
+   > When all the anchor handles are together the fields displayed are **Pos X, Pos Y, Width and Height.** The Pos X and Pos Y values indicate the position of the pivot relative to the anchors.
+   When the anchors are separated the fields can change partially or completely to **Left, Right, Top and Bottom**. These fields define the padding inside the rectangle defined by the anchors. The Left and Right fields are used if the anchors are separated horizontally and the Top and Bottom fields are used if they are separated vertically.
+   1. 哪组Anchors并在一起，那个方向就是Pos，代表pivot离那一组anchors的距离。否则就是Tom、Bottom，**代表锚点矩形各个边相对与父物体边界的距离？？？？**
+4. 
