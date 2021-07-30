@@ -57,9 +57,25 @@
             1. Content
          2. Horizontal Scrollbar 
          3. Vertical Scrollbar
-3. DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Template，该template实际是一个Scroll View并在Content中放入了一个Toggle。在实际运行中会根据这个Template创建一个Content以及Content之下的多个Toggles即Item，自动由Scroll Rect管理。有趣有趣。
-   1. 所以DropDown实际可以看成按钮激活的Scroll View，并且View的Content是一组数量不等的Toggles
-   2. 所以其实框架里的生成物品的template然后再生成物品是很可以理解的了
+
+#### DropDown
+DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Template，该template实际是一个Scroll View并在Content中放入了一个Toggle。在实际运行中会根据这个Template创建一个Content以及Content之下的多个Toggles即Item，自动由Scroll Rect管理。有趣有趣。
+1. 所以DropDown实际可以看成按钮激活的Scroll View，并且View的Content是一组数量不等的Toggles
+2. 所以其实框架里的生成物品的template然后再生成物品是很可以理解的了
+3. 至于实现中的逻辑是：
+   ```csharp
+   if(dropDownButton("默认显示"))
+   {
+      var gm = new GenericMenu();
+      gm.AddItem("OptionA",
+         ()=>{} // OnClick逻辑
+      );
+      gm.AddItem("OptionB",
+         ()=>{} // OnClick逻辑
+      );
+      // ...
+   }
+   ```
 
 ### Auto Layout
 1. Animation可以用到Button类似的控件上，原因只是Button暴露了一些状态的Trigger给你设置，在具体发生那些事件的时候会通知同级的Animator应该。
@@ -99,14 +115,27 @@
    1. 让UI的锚点在它所在的角上
    2. `Canvas Scalar`可以设置`Canvas`保持布局随屏幕缩放
       1. 默认`Canvas`的缩放是取决于宽度的，宽度变为1.5倍则UI物件也会变为1.5。想分配一下宽高的权重，就在设置好“随屏幕缩放”之后设置Match，0.5就是一半一半了
-      
-### GUI类
+   
+### APIs
+#### GUI类
 1. [`GUI.Window()`](https://docs.unity3d.com/ScriptReference/GUI.Window.html)会创建一个popup window，其中需要传入一个用于绘制该window的内容的函数。
    1. 这个函数为什么在`EditorWindow`扩展类`OnGUI()`函数中无效？
       > `Begin`/`EndWindows` is used to determine where these can go. You need to have all calls to `GUI.Window` or `GUILayout.Window` inside a `BeginWindows` / `EndWindows` pair.[来源](https://docs.unity3d.com/ScriptReference/EditorWindow.BeginWindows.html)
       1. 以上情形在使用`GUILayout.Window()`时也适用
       2. 注意在一般游戏中的弹窗不必使用这个，这个情况是`EditorWindow`特有的。因为如来源所述，在InGame中的`GUI.Window`行为跟Inspector中并不一致。
-   2. `UnityEngine.GUIContent`用于指定显示内容，包括`string text`、`Texture image`和`string tooltip`（就这仨）。
+#### 一些跟GUI相关的东西
+1. `UnityEngine.GUIContent`用于指定显示内容，包括`string text`、`Texture image`和`string tooltip`（就这仨）。
+2. `UnityEngine.GUIStyle`用于指定单个UnityGUI控件的外观。（和前面那个看来有联系了）
+   >This works closely in relation with `GUIStyle`. `GUIContent` defines what to render and `GUIStyle` defines how to render it.  
+3. `UnityEngine.GUISkin`则是当你在整个GUI中需要一个统一的风格时，它可以负责
+
+#### GUIUtility
+显然是GUI的实用工具，提供了以下一些功能：
+
+
+
+
+#### 
 
 ## Timeline
 ## Animation窗口和Timeline窗口的差异
@@ -261,26 +290,31 @@
 #### 属性绘制器（`PropertyDrawer`）
 1. 有一些自定义的可以在Inspector中有显示的类，可以定制他在Inspector中的显示效果
 2. 方法：
-   1. 首先要继承一个`PropertyDrawer`类
-   2. 这里要`override OnGUI()`，具体这三个参数是：
-      1. `Rect position`：为什么会在进来的时候就知道我需要多少空间呢？如果我不只用这么多空间呢？
-         1. 比如我加了一个`GUILayout.TextField`，他就只能跑后面了（本来应该每个TextField都跟在Size每个Element后面的）
-         ![](pic/PropertyDrawerPositionQ.png)
-         1. 这里实际有两个问题：
-            1. 这里的height肯定是不够的，那么如何定义Height呢？——[答案](http://answers.unity.com/answers/510983/view.html)
-               1. 即通过
-                  ```CSharp
-                  public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
-                  ```
-                  来搞定高度问题
-            2. 此外，在height够的情况下，每个UI控件都要像示例中的逻辑需要传进一个`Rect`来定义它绘制的区域。而这个东西在`GUILayout`之中是统统没有的，`GUILayout`就是傻瓜化的UI控件系统，用它就不行。所以这里需要`EditorGUI`中的控件。
-3. 在这个东西的基础上，我们可以利用属性的特性来控制`OnGUI()`的绘制逻辑，在前面的扩展PropertyDrawer类的基础上，可以对其加入`[CustomPropertyDrawer(typeof(MyRangeAttribute))]`，在该`property`存在`MyRangeAttribute`的时候才调用这个代理进行绘制
-   1. 关键还是OnGUI()，如果需要解析定义的`MyRangeAttribute`中的内容时，`OnGUI()`必须有这么一句，拿到父类中的特性字段
-      ```CSharp
-      MyRangeAttribute range = (MyRangeAttribute)attribute;
-      ```
-      1. 这里因为由`CustomPropertyDrawer`制定了特用于某个Attribute，所以可以直接获取对应的attribute而不会因为定义了多个attribute而get不到对应的。
-4. 注意，`EditorGUILayout`由于性能原因不能用于`PropertyDrawer`（估计动态适配的话属性太多）
+   1. 首先要继承一个`PropertyDrawer`类，在这个类中打赏
+      1. 这里要`override OnGUI(Rect, SerializedProperty, GUIContent)`，在这里进行GUI的重绘，其中传入的三个参数是：
+         1. `Rect position`：为什么会在进来的时候就知道我需要多少空间呢？如果我不只用这么多空间呢？
+            1. 比如我加了一个`GUILayout.TextField`，他就只能跑后面了（本来应该每个TextField都跟在Size每个Element后面的）
+            ![](pic/PropertyDrawerPositionQ.png)
+            1. 这里实际有两个问题：
+               1. 这里的height肯定是不够的，那么如何定义Height呢？——[答案](http://answers.unity.com/answers/510983/view.html)
+                  1. 即通过
+                     ```CSharp
+                     public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+                     ```
+                     来搞定高度问题
+               2. 此外，在height够的情况下，每个UI控件都要像示例中的逻辑需要传进一个`Rect`来定义它绘制的区域。而这个东西在`GUILayout`之中是统统没有的，`GUILayout`就是傻瓜化的UI控件系统，用它就不行。所以这里需要`EditorGUI`中的控件。
+         2. `SerializedProperty`肯定就是传进来的待绘制的属性了。如果想获取其中的field，这里的方法是使用
+            ```csharp
+            property.FindPropertyRelative("fieldName").intValue.ToString() // intValue是用来类似于做转换的，当然还有stringValue等等
+            ```
+   2. 在上述类上打上`[CustomPropertyDrawer(typeof(MyTestProperty))]`，Unity就会在遇到`MyTestProperty`，并且需要绘制的时候，自动调用该工具来进行绘制了
+   3. 番外：在这个东西的基础上，我们可以利用属性的特性来控制`OnGUI()`的绘制逻辑，在前面的扩展`PropertyDrawer`类的基础上，可以不对其加入property的特性，而是加入特性的`[CustomPropertyDrawer(typeof(MyXXXAttribute))]`，在任意`property`存在`MyXXXAttribute`的时候才调用这个代理进行绘制；以及对不同参数设定不同的绘制模式
+      1. 如果在`OnGUI()`中需要解析定义的`MyRangeAttribute`中的内容时，`OnGUI()`必须有这么一句，拿到父类中的特性字段
+         ```CSharp
+         MyRangeAttribute range = (MyRangeAttribute)attribute;
+         ```
+         1. 这里因为由`CustomPropertyDrawer`制定了特用于某个Attribute，所以可以直接获取对应的attribute而不会因为定义了多个attribute而get不到对应的。
+3. 注意，`EditorGUILayout`由于性能原因不能用于`PropertyDrawer`（估计动态适配的话属性太多）
 
 #### 自定义编辑器（）
 1. 动机：之前的自定义逻辑适用于Property，而这次的则直接适用于某个`Monobehaviour`
@@ -323,6 +357,56 @@
          }
       }
       ```
+
+#### 如何在标题栏加入padlock
+[来源](http://leahayes.co.uk/2013/04/30/adding-the-little-padlock-button-to-your-editorwindow.html)  
+```csharp
+   private void ShowButton(Rect position)
+   {
+      if (this.lockButtonStyle == null) {
+         this.lockButtonStyle = "IN LockButton";
+      }
+      this.locked = GUI.Toggle(position, this.locked, GUIContent.none, this.lockButtonStyle);
+   }
+
+   void IHasCustomMenu.AddItemsToMenu(GenericMenu menu)
+   {
+     menu.AddItem(new GUIContent("Lock"), this.locked, () => {
+         this.locked = !this.locked;
+     });
+   }
+```
+
+### APIs
+#### EditorUtility
+提供了一些Editor层面的实用工具:
+##### Dirty系列
+当你想要修改一个object但是并不想设置一个`Undo`可以使用`SetDirty(Object)`。
+
+
+#### Editor.Undo
+当你在某个东西进行需要一个undo操作的**修改**时，可以用这个。
+以下是一些使用范例：
+修改一个property
+```csharp
+Undo.RecordObject (myGameObject.transform, "Zero Transform Position");
+myGameObject.transform.position = Vector3.zero;
+```
+添加组件
+```csharp
+Undo.AddComponent<RigidBody>(myGameObject);
+```
+新建新的GameObject或者摧毁：
+```csharp
+var go = new GameObject();
+Undo.RegisterCreatedObjectUndo (go, "Created go"); //? 奇怪这里先创建再记录
+
+Undo.DestroyObjectImmediate (myGameObject);
+```
+改变parent
+```csharp
+Undo.SetTransformParent (myGameObject.transform, newTransformParent, "Set new parent");
+```
 
 ## 问题
 1. 我如何切到那些`Component`的源码而非仅仅是metadata文件？毕竟在Editor中是有这个Component的源码的。
@@ -423,3 +507,10 @@ class Trouble
    ![](pic/UnityInheritanceStructure.jpg)  
    [图源](https://blog.csdn.net/zhaohuaonline/article/details/71272245)
 
+
+### 插件
+#### 如何导入外部dll
+[来源](https://docs.unity3d.com/Manual/UsingDLL.html)
+直接把生成好的dll拖到项目中作为asset就行了
+1. 为什么这里的dll没有intellisense？  
+   用Debug模式生成就好了。

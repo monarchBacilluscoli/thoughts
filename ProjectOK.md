@@ -11,8 +11,8 @@
    - [ ] 没有看到“动画状态机”类型，什么是动画状态机？
 1. 节点上显示参数
 <!-- todo -->
-   - [ ] 看看节点上都定制了什么参数
-   - [ ] 具体显示逻辑是什么
+   - [x] 看看节点上都定制了什么参数
+   - [x] 具体显示逻辑是什么
 4. 条件节点兼容环境变量判断
 <!-- todo -->
    - [ ] 看看环境变量配置
@@ -35,10 +35,12 @@
  
    
 ### LogicGraphScriptableObject
+这个东西主要就负责序列化和反序列化了
 1. 整个Json和Unity Serialization结合的流程  
    ![](/pic/GraphSerialization.svg)  
-   实际上和BJF中的`ConfigData`如出一辙，那个用`protobuf`生成了装有数据的bin文件，然后把bin文件全部写到SO的字段里（字节流）；这里把Json的字符串流全部写到SO字段里。
-2. 似乎整个LogicGraph中的item都被分为以下几类，分别做了几个List
+   实际上和BJF中的`ConfigData`如出一辙，那个用`protobuf`生成了装有数据的bin文件，然后把bin文件全部写到SO的字段里（字节流）；这里把Json的字符串流全部写到SO字段里。  
+   当需要反序列化的时候会通过实现`OnAfterDeserialize()`回调来把Json数据使用Json序列化器反序列化成为ok的数据。
+2. 似乎整个`LogicGraph`中的item都被分为以下几类，分别做了几个List
    1. 表示状态的item
    2. 表示可执行节点的item
    <!-- todo -->
@@ -46,7 +48,19 @@
       1. 这个是State之后执行Node的分支节点，见后文
 
 ### LogicGraphEditWindow
+![](pic/LGDrawLine.svg)  
 1. 画线归LG管
+   1. 所谓画线对象即`IParamProvider.LineConnectingDescSet`，即实现为`m_executableDrawParamProvider.m_lineConnectingDescSet`，该实现字段被赋值为`LogicGraphEditWindow.ConnectLineStart()`，最终该方法就是一个记录出方ID、lineInfo（string）、socketIndex（如果有）的那个画线辅助方法。
+      1. 所以该画线对象似乎应该叫做画线委托(如果你想在应该画线的时候注册点其他东西的话)，但是名称的DescSet....
+2. `IParamProvider`，即常常见到的叫做`context`的玩意，包括了`LogicGraphInfo`即需要存储的逻辑数据信息（包括三种节点的列表啊啥的）、缓存的EN4Editor的Dic、`Undo`代理对象、以及前面所说的画线对象。实际上就是当前LG的环境。
+   1. 至于对该对象的操作，则是在增删节点、Save/Load、Undo的时候需要
+   2. 但其实Provider里面的内容LG中都有，只不过构建一个Provider往函数里传递的时候比较方便而已
+#### Undo操作的实现
+![](pic/LGUndo.svg)
+1. 实际上就是把整个当前的LGInfo记录到Undo stack上，核心是`Undo.RegisterCompleteObjectUndo()`。
+2. `Undo.RegisterCompleteObjectUndo()`和`Undo.RecordObject()`的差别
+   1. 前者是把**之前**的所有状态记录下来，后者是准备记录**之后**要进行的所有状态改变
+
 
 ### ExecutableNode
 1. NodeInfo和Node的关系如何？难道说NodeInfo是Editor中的数据，而Node是NodeInfo在运行运行的逻辑？
@@ -92,7 +106,8 @@
    基类节点inspector，最上面是节点名字
 <!-- ! -->
 1. 无论实现哪个类的时候，都要注意参数！ 
-  
+- [ ] 为什么IDrawer继承自SO？
+   1. 反正`LGEditorWindow`继承自`EditorWindow`
 
 
 ------------------
@@ -105,4 +120,21 @@
    2. CanvasDrawer
    3. InspectorDrawer
    分别要进行NodeTypeDefine、CanvasTypeDefine和InspectorDefine
-3. 
+
+
+## 参考
+### 关键词列表
+   \Design\关键词列表.xlsx
+### 
+
+## ExpressionEvaluator
+用于计算节点的表达式计算。
+实现样式如图  
+![CalculationNode](/pic/CalculationNode.png)
+对于Editor而言：
+1. 需要处理节点的连接逻辑，但当前socket连接好像仅能以节点作为目标，而不能以端点作为目标。需要提供新的逻辑
+2. Editor的时候仍然需要提供表达式合法性
+
+对于Runtime而言，需要处理节点的运算逻辑：
+1. 需要将含有变量代号的表达式转化为数值（[CustomVariables](https://github.com/codingseb/ExpressionEvaluator/wiki/Variables-and-Functions)通过字典的形式提供）
+2. 反向的驱动逻辑：看看bolt怎么做的
