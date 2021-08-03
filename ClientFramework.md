@@ -392,7 +392,7 @@
          1. 用于一层一层返回  
             1. 奇怪，为什么不直接创建一个Task的stack
                1. 如果用Task的stack才奇怪呢，因为Task只是一个方法而不是数据
-2. `UITask`受UIManager控制
+2. `UITask`受`UIManager`控制
    1. 其中最关键的几个函数
       1. `StartUITask`
       2. `StartUITaskWithPrepare`
@@ -423,12 +423,11 @@
       3. 准备资源 ``
       4. 界面刷新 `StartUpdateView()`
          1. 界面刷新甚至从整个数据开始拉取的时候一般会禁止UI交互
-         1. 然后进行UI的auto bind
    3. `UITaskBase.StartUpdatePipeLine()`会调用`UpdateDataCache()`，会有疑问就是为啥这里也要处理data。
       1. 注意这里是DataCache，就是从PlayerCtx中拿到的数据可能并不符合显示需求，比如你可能需要对装备栏里的东西进行一个过滤，显示的信息是过滤后的信息。而不是从服务器上拉取
       2. 啊？艹之后就是静态资源和动态资源加载...哦资源不是数据
 4. `UITask`管理若干个`UILayer`以及所属的`UIController`，负责创建并显示`Layer`，同时通过`UIController`控制`Layer`的动画过程及图片文字显示等等。
-5. **事件处理函数在`InitAllUIControllers()`中绑定，可是我还没见过什么事件处理函数咧** 
+5. **事件处理函数在`InitAllUIControllers()`中绑定** 
    1. 狗屁，这里基类要根据子类设定的CtrlArrayDesc进行所有ctrl的创建和绑定，实际是creator的最初动力（但是这里不进行Layer的创建，那个是在staticResource中调用[createLayer](#场景管理)创建的）。而子类要在基类根据desc完成创建及绑定事务后将创建好的控制器赋值给自己的field
 6. 一个认识：这个框架之所以叫“框架”，并不是库的那种你拿过来随意组合调用的各种组件，而是给你规定了流程（*什么事情在什么时候做*），你要在这个流程中的固定位置填充你自己的逻辑。真的就是“别人调用你”
 7. 加载的资源分为动态资源和静态资源：

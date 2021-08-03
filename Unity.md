@@ -2,9 +2,9 @@
 
 ## User Interface
 1. 看样子Unity有三种UI套件：
-   * UIElement：Editor用的
-   * Unity UI：In Game用的
-   * Immediate Mode UI：`OnGUI()`那些，code-driven，用于游戏内debugging，**好像也能对inspector进行编辑**？
+   * UIToolkit，也就是UIElement：就是像web的那种UI，具体用在哪里我也不知道
+   * Unity UI：基于GameObject的runtime UI系统
+   * Immediate Mode UI：GUI、GUILayout、EditorGUI、EditorGUILayout那些，code-driven的UI系统
 
 ### Canvas
 1. 这个玩意的边界显示是为了即使在没有打开Game View的时候也能进行编辑
@@ -110,6 +110,7 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
    3. 至于我需要通知哪个对象，这个根据输入状态检测对象的功能是由`Raycasters`提供的
    4. 最终就是调用UI组件的东西了
 
+
 ### How tos
 1. 如何让UI适应屏幕
    1. 让UI的锚点在它所在的角上
@@ -118,11 +119,11 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
    
 ### APIs
 #### GUI类
-1. [`GUI.Window()`](https://docs.unity3d.com/ScriptReference/GUI.Window.html)会创建一个popup window，其中需要传入一个用于绘制该window的内容的函数。
+1. [`GUI.Window()`](https://docs.unity3d.com/ScriptReference/GUI.Window.html)会创建一个window，其中需要传入一个用于绘制该window的内容的函数。
    1. 这个函数为什么在`EditorWindow`扩展类`OnGUI()`函数中无效？
-      > `Begin`/`EndWindows` is used to determine where these can go. You need to have all calls to `GUI.Window` or `GUILayout.Window` inside a `BeginWindows` / `EndWindows` pair.[来源](https://docs.unity3d.com/ScriptReference/EditorWindow.BeginWindows.html)
+      > `EditorWindow.Begin`/`EndWindows` is used to determine where these can go. You need to have all calls to `GUI.Window` or `GUILayout.Window` inside a `BeginWindows` / `EndWindows` pair.[来源](https://docs.unity3d.com/ScriptReference/EditorWindow.BeginWindows.html)
       1. 以上情形在使用`GUILayout.Window()`时也适用
-      2. 注意在一般游戏中的弹窗不必使用这个，这个情况是`EditorWindow`特有的。因为如来源所述，在InGame中的`GUI.Window`行为跟Inspector中并不一致。
+2. [`GUI.DragWindow()`](https://docs.unity3d.com/ScriptReference/GUI.Window.html)直接在WindowFunction内部调用可以让这个Window是dragable的
 #### 一些跟GUI相关的东西
 1. `UnityEngine.GUIContent`用于指定显示内容，包括`string text`、`Texture image`和`string tooltip`（就这仨）。
 2. `UnityEngine.GUIStyle`用于指定单个UnityGUI控件的外观。（和前面那个看来有联系了）
@@ -133,6 +134,24 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
 显然是GUI的实用工具，提供了以下一些功能：
 
 
+#### Event类
+用户输入或者UI事件。  
+每次有一个Event的时候，`OnGUI`都会调用一次，所以`OnGUI`可能会一帧刷新多次。([`Event API`](https://docs.unity3d.com/ScriptReference/Event.html)&[Unity调用顺序](https://docs.unity3d.com/Manual/ExecutionOrder.html))
+![](/pic/EventExample.png)  
+(一次从非焦点到焦点的`Event.current.type`的变化以及变化发生的帧数，注意其中最直接的mouseDown和mouseUP)  
+1. `repaint`每帧一次，`Layout`为初始化事件，会收集信息并进行自动布局
+2. 事件的类型Drag和MouseDown不会在同一次Event事件中
+3. GUI的一些类型例如Button可能会把Event给吃掉
+
+##### 问题
+1. 某字段会在OnGUI中根据鼠标位置进行设置，为什么我在OnGUI中判断该字段不空则绘制一个GUILayout control的时候会报错"ArgumentException: Getting control 0's position in a group with only 0 controls when doing Repaint Aborting"
+   1. 因为Layout阶段在鼠标事件之前，鼠标事件中设置了字段，然后想去设置Layout类型的control的时候发现Layout阶段已经错过了，没有办法get到那个在Layout阶段尚不存在的组件的布局信息。
+2. 在使用popupWindowContent的时候，每次修改代码都会有如下报错
+   ```
+   NullReferenceException: Object reference not set to an instance of an object
+   UnityEditor.EditorWindow.Close () (at <007193b7fa9c4ad1be5b26df6a654213>:0)
+   ```
+   原来是编辑器的Layout没有保存，保存当前Layout，恢复default并恢复解决
 
 
 #### 
@@ -156,6 +175,7 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
 1. 上下身的动画遮罩也可以
    1. 通过Add Override Track，然后点击Track打开其属性，设置avatar mask即可 
    ![](/pic/TimelineAvatarMask.png)
+
 
 ## Timeline Editor窗口
 1. 轨道渲染和动画优先级为自上而下，即第二个轨道的动画将覆盖第一个动画
@@ -290,25 +310,29 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
 #### 属性绘制器（`PropertyDrawer`）
 1. 有一些自定义的可以在Inspector中有显示的类，可以定制他在Inspector中的显示效果
 2. 方法：
-   1. 首先要继承一个`PropertyDrawer`类，在这个类中打赏
-      1. 这里要`override OnGUI(Rect, SerializedProperty, GUIContent)`，在这里进行GUI的重绘，其中传入的三个参数是：
-         1. `Rect position`：为什么会在进来的时候就知道我需要多少空间呢？如果我不只用这么多空间呢？
-            1. 比如我加了一个`GUILayout.TextField`，他就只能跑后面了（本来应该每个TextField都跟在Size每个Element后面的）
-            ![](pic/PropertyDrawerPositionQ.png)
-            1. 这里实际有两个问题：
-               1. 这里的height肯定是不够的，那么如何定义Height呢？——[答案](http://answers.unity.com/answers/510983/view.html)
-                  1. 即通过
-                     ```CSharp
-                     public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
-                     ```
-                     来搞定高度问题
-               2. 此外，在height够的情况下，每个UI控件都要像示例中的逻辑需要传进一个`Rect`来定义它绘制的区域。而这个东西在`GUILayout`之中是统统没有的，`GUILayout`就是傻瓜化的UI控件系统，用它就不行。所以这里需要`EditorGUI`中的控件。
-         2. `SerializedProperty`肯定就是传进来的待绘制的属性了。如果想获取其中的field，这里的方法是使用
-            ```csharp
-            property.FindPropertyRelative("fieldName").intValue.ToString() // intValue是用来类似于做转换的，当然还有stringValue等等
-            ```
-   2. 在上述类上打上`[CustomPropertyDrawer(typeof(MyTestProperty))]`，Unity就会在遇到`MyTestProperty`，并且需要绘制的时候，自动调用该工具来进行绘制了
-   3. 番外：在这个东西的基础上，我们可以利用属性的特性来控制`OnGUI()`的绘制逻辑，在前面的扩展`PropertyDrawer`类的基础上，可以不对其加入property的特性，而是加入特性的`[CustomPropertyDrawer(typeof(MyXXXAttribute))]`，在任意`property`存在`MyXXXAttribute`的时候才调用这个代理进行绘制；以及对不同参数设定不同的绘制模式
+   1. 示例：
+      ```csharp
+      [CustomPropertyDrawer(typeof(Ingredient))] // 标记哪种类型的property需要重绘
+      public class IngredientDrawer : PropertyDrawer // 继承property绘制器
+      {
+         // 在给定的矩形内绘制属性
+         public override void OnGUI(Rect position, SerializedProperty property,GUIContent label)
+         {
+            // 在父属性上使用 BeginProperty/EndProperty 意味着
+            // 预制件重写逻辑作用于整个属性。
+            EditorGUI.BeginProperty(position, label, property);
+            var subProperty = property.FindPropertyRelative("subProperty"); 
+            EditorGUI.EndProperty();
+         }
+
+         // 在这个函数中定义需要的高度
+         public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+         {
+            // 逻辑
+         }
+      }
+      ```
+   2. 番外：在这个东西的基础上，我们可以利用属性的特性来控制`OnGUI()`的绘制逻辑，在前面的扩展`PropertyDrawer`类的基础上，可以不对其加入property的特性，而是加入特性的`[CustomPropertyDrawer(typeof(MyXXXAttribute))]`，在任意`property`存在`MyXXXAttribute`的时候才调用这个代理进行绘制；以及对不同参数设定不同的绘制模式
       1. 如果在`OnGUI()`中需要解析定义的`MyRangeAttribute`中的内容时，`OnGUI()`必须有这么一句，拿到父类中的特性字段
          ```CSharp
          MyRangeAttribute range = (MyRangeAttribute)attribute;
@@ -319,12 +343,12 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
 #### 自定义编辑器（）
 1. 动机：之前的自定义逻辑适用于Property，而这次的则直接适用于某个`Monobehaviour`
 2. 修改Inspector中显示的方法：
-   1. 首先继承`Editor`类，还有`CustomEditor`
+   1. 首先继承**`Editor`**类，还有`CustomEditor`特性
    2. 然后把逻辑放到`OnInspectorGUI()`中
       ```CSharp
-      [CustomEditor(typeof(LookAtPoint))]
+      [CustomEditor(typeof(LookAtPoint))] // 注意打上标记
       [CanEditMultipleObjects]
-      public class LookAtPointEditor : Editor 
+      public class LookAtPointEditor : Editor // 注意继承
       {
           SerializedProperty lookAtPoint; // 用于缓存property
           void OnEnable()
