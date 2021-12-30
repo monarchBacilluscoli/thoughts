@@ -156,3 +156,11 @@ DropDown也有玄机：本身包含一个未激活的生成下拉列表item的Te
 3. `OnSelect`会在当前控件成为热点的时候触发，`OnDeselect`会在当前控件热点消失（选中空白/别的控件）时激活
    1. `OnDeselect`调用顺序先于`OnSelect`
 4. `OnClick`在玩家`PointerDown`和`PointerUp`同一个对象的时候会触发，无论点击时长如何
+
+
+# `RectTransform`的`Anchor presets`
+三种模式：
+1. 默认模式：设置Anchor在父物体上的位置
+2. Shift - Pivot模式：同时设置Pivot吸附到对应边角
+3. Alt - Pos模式：同时使物体所在位置也吸附到对应边角
+同时要注意编辑的时候是否还存在别的`ILayoutSelfController`或者`ILayoutGroup`之类，存在以上接口的组件可能会影响当前RectTransform的尺寸调整。

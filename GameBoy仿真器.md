@@ -1,5 +1,7 @@
 # GameBoy仿真器
 
+http://accu.cc/content/gameboy/preface/
+
 "硬件仿真器"是虚拟机的一个子类
 
 硬件仿真器来指代一种在通用计算机平台上模拟领域专用物理元器件的模拟程序. 
